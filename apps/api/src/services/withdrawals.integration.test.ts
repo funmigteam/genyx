@@ -1,0 +1,31 @@
+import { afterAll, expect, it, vi } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { Address } from '@ton/ton';
+import { prisma } from '../prisma.js';
+import { postLedger, accountBalance } from './ledger.js';
+vi.mock('../config.js', () => ({ economics: { withdrawal: { minimumUsdc: 1000000n, feeBps: 150, maximumPerDay: 2 } }, payoutAutomationReady: false }));
+import { requestWithdrawal } from './withdrawals.js';
+const enabled = process.env.GENYX_ISOLATED_TEST_DB === 'true';
+if (enabled) { const url = new URL(process.env.DATABASE_URL ?? ''); if (url.hostname !== '127.0.0.1' || url.pathname !== '/genyx_integration') throw new Error('Isolated database required'); }
+const integration = enabled ? it : it.skip;
+afterAll(() => prisma.$disconnect());
+integration('withdrawal accepts 1.5 USDT once, enforces verified wallet and protects balance', async () => {
+  const id = randomUUID();
+  const user = await prisma.user.create({ data: { telegramId: BigInt('0x' + id.replaceAll('-', '').slice(0, 12)) } });
+  const address = new Address(0, Buffer.from(randomUUID().replaceAll('-', '').repeat(2), 'hex')).toRawString();
+  const available = await prisma.ledgerAccount.create({ data: { userId: user.id, code: `USER:${user.id}:USDC:AVAILABLE`, currency: 'USDC', type: 'AVAILABLE' } });
+  await prisma.ledgerAccount.create({ data: { userId: user.id, code: `USER:${user.id}:USDC:HOLD`, currency: 'USDC', type: 'HOLD' } });
+  const source = await prisma.ledgerAccount.create({ data: { code: `TEST:${id}`, currency: 'USDC', type: 'RESERVE' } });
+  await postLedger({ idempotencyKey: id, kind: 'DEPOSIT', referenceType: 'TEST', referenceId: id, postings: [{ accountId: source.id, debit: 5000000n }, { accountId: available.id, credit: 5000000n }] });
+  await expect(requestWithdrawal(user.id, 1500000n, address, randomUUID())).rejects.toThrow('verify');
+  await prisma.wallet.create({ data: { userId: user.id, address, verifiedAt: new Date() } });
+  const key = randomUUID(), first = await requestWithdrawal(user.id, 1500000n, address, key);
+  expect(first.status).toBe('REQUESTED');
+  expect((await requestWithdrawal(user.id, 1500000n, address, key)).id).toBe(first.id);
+  expect(await accountBalance(available.id)).toBe(3500000n);
+  await expect(requestWithdrawal(user.id, 1600000n, address, key)).rejects.toThrow('conflicts');
+  await expect(requestWithdrawal(user.id, 500000n, address, randomUUID())).rejects.toThrow('minimum');
+  await expect(requestWithdrawal(user.id, 4000000n, address, randomUUID())).rejects.toThrow('Insufficient');
+  await requestWithdrawal(user.id, 1000000n, address, randomUUID());
+  await expect(requestWithdrawal(user.id, 1000000n, address, randomUUID())).rejects.toThrow('Daily withdrawal');
+});

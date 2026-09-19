@@ -1,0 +1,1734 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" id="htmlRoot">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>GENYX V3.1 — Full Product Preview</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#070b14;--card:#0f1623;--border:rgba(255,255,255,.08);--cyan:#00e5ff;--purple:#a855f7;--gold:#fbbf24;--pink:#ec4899;--green:#22c55e}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:#e8edf5;min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+[dir=rtl] body,[lang=fa] body{font-family:'Vazirmatn','Inter',system-ui,sans-serif}
+.glass{background:rgba(15,22,35,.85);backdrop-filter:blur(16px);border:1px solid var(--border)}
+.neon{text-shadow:0 0 12px rgba(0,229,255,.5)}
+.card{background:var(--card);border:1px solid var(--border);border-radius:1rem}
+.progress{height:8px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden}
+.progress>div{height:100%;border-radius:999px;transition:width .6s cubic-bezier(.22,1,.36,1)}
+.bar-cyan>div{background:linear-gradient(90deg,#00e5ff,#06b6d4)}
+.bar-purple>div{background:linear-gradient(90deg,#a855f7,#7c3aed)}
+.bar-gold>div{background:linear-gradient(90deg,#fbbf24,#f59e0b)}
+.page{display:none}.page.active{display:block;animation:fadeIn .25s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.toast{animation:toastIn .3s ease}
+@keyframes toastIn{from{transform:translate(-50%,20px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
+.modal-bg{background:rgba(0,0,0,.8);backdrop-filter:blur(6px)}
+.btn{transition:transform .15s,opacity .15s;cursor:pointer}.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.bottom-nav .active{color:var(--cyan)!important}
+.stat-num{font-variant-numeric:tabular-nums}
+::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:4px}
+.badge{font-size:10px;padding:2px 8px;border-radius:6px;font-weight:600}
+.badge-live{background:rgba(239,68,68,.2);color:#f87171}
+.badge-ok{background:rgba(16,185,129,.2);color:#34d399}
+.badge-warn{background:rgba(245,158,11,.2);color:#fbbf24}
+.badge-info{background:rgba(0,229,255,.15);color:#00e5ff}
+.badge-purple{background:rgba(168,85,247,.2);color:#c084fc}
+.info-btn{width:18px;height:18px;min-width:18px;border-radius:50%;background:transparent;border:1px solid rgba(148,163,184,.4);display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;cursor:pointer;color:#94a3b8;line-height:1;padding:0}
+.info-btn:hover{border-color:#00e5ff;color:#00e5ff;background:rgba(0,229,255,.08)}
+.demo-banner{background:linear-gradient(90deg,rgba(245,158,11,.15),rgba(239,68,68,.15));border-bottom:1px solid rgba(245,158,11,.3)}
+.admin-sidebar{width:240px;background:#0a0e17;border-inline-end:1px solid var(--border)}
+.admin-nav a{display:flex;align-items:center;gap:10px;padding:9px 16px;font-size:13px;color:#94a3b8;border-radius:8px;margin:1px 8px;cursor:pointer}
+.admin-nav a:hover,.admin-nav a.active{background:rgba(0,229,255,.08);color:var(--cyan)}
+.table{width:100%;font-size:13px}.table th{text-align:start;padding:10px 12px;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.04em}.table td{padding:10px 12px;border-top:1px solid var(--border)}
+input,select,textarea{background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:#e8edf5;width:100%;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--cyan)}
+.lang-btn.active{background:rgba(0,229,255,.2);color:var(--cyan)}
+.id-blue{color:#38bdf8;font-weight:600;cursor:pointer}.id-blue:hover{text-decoration:underline;color:#7dd3fc}
+.tree-node{padding:6px 0;border-inline-start:2px solid rgba(255,255,255,.08);padding-inline-start:12px;margin-inline-start:8px}
+.launch-badge{background:linear-gradient(90deg,#f59e0b,#ef4444);color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px}
+.price-old{text-decoration:line-through;color:rgba(255,255,255,.35);font-size:12px;margin-inline-end:6px}
+#userMenu{position:fixed;top:0;bottom:0;width:min(280px,85vw);background:#0a0e17;z-index:60;overflow-y:auto;padding-top:2.5rem;transition:transform .3s cubic-bezier(.4,0,.2,1);box-shadow:0 0 40px rgba(0,0,0,.5)}
+html[dir=ltr] #userMenu{left:0;right:auto;transform:translateX(-105%)}
+html[dir=ltr] #userMenu.open{transform:translateX(0)}
+html[dir=rtl] #userMenu{right:0;left:auto;transform:translateX(105%)}
+html[dir=rtl] #userMenu.open{transform:translateX(0)}
+#userMenuOverlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:55;opacity:0;pointer-events:none;transition:opacity .25s}
+#userMenuOverlay.open{opacity:1;pointer-events:auto}
+@media(min-width:1024px){.desktop-only{display:block!important}#userMenu,#userMenuOverlay{display:none!important}}
+@media(max-width:1023px){.desktop-only{display:none!important}}
+</style>
+</head>
+<body>
+<div class="demo-banner fixed top-0 inset-x-0 z-[300] py-1.5 px-3 text-center text-[11px] font-semibold text-amber-300">
+  DEMO MODE — ALL BALANCES AND TRANSACTIONS ARE SIMULATED
+</div>
+
+<!-- ========== ONBOARDING GATE (first visit) ========== -->
+<div id="onboardGate" class="fixed inset-0 z-[280] bg-[#070b14] flex flex-col items-center justify-center px-5 pt-10 pb-8 overflow-y-auto">
+  <div class="absolute top-10 end-4 flex gap-1 z-10">
+    <button type="button" onclick="setLang('en')" class="lang-btn px-2 py-1 rounded-lg text-[10px] glass active" data-lang="en">EN</button>
+    <button type="button" onclick="setLang('fa')" class="lang-btn px-2 py-1 rounded-lg text-[10px] glass" data-lang="fa">FA</button>
+    <button type="button" onclick="setLang('ar')" class="lang-btn px-2 py-1 rounded-lg text-[10px] glass" data-lang="ar">AR</button>
+  </div>
+  <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-400 to-purple-500 flex items-center justify-center text-black font-extrabold text-2xl mb-3">G</div>
+  <h1 class="text-2xl font-extrabold neon mb-1">GENYX</h1>
+  <p class="text-xs text-white/40 mb-2">PLAY · BUILD · RISE</p>
+  <div class="mb-4 text-center">
+    <span class="launch-badge" id="launchBadgeOnboard">LAUNCH · 50% OFF</span>
+    <div class="mt-2 font-mono text-amber-400 text-sm font-bold" id="launchTimerOnboard">--:--:--:--</div>
+    <div class="text-[10px] text-white/40 mt-0.5" data-i18n="on.timerLabel">Launch countdown</div>
+  </div>
+  <div class="w-full max-w-md space-y-3 text-sm">
+    <div class="card p-4">
+      <div class="font-bold mb-2 text-cyan-400" data-i18n="on.step1">1. Connect TON Wallet</div>
+      <button type="button" id="btnConnectWallet" onclick="doConnectWallet()" class="btn w-full py-3 rounded-xl bg-cyan-500 text-black font-bold">Connect Wallet</button>
+      <button type="button" id="btnDisconnectWalletOnboard" onclick="doDisconnectWallet()" class="btn w-full py-2 mt-2 rounded-xl text-red-400 text-xs hidden">Disconnect</button>
+      <div id="walletStatusOnboard" class="text-[11px] text-white/40 mt-2 text-center">Not connected</div>
+    </div>
+    <div class="card p-4">
+      <div class="font-bold mb-1 text-purple-400" data-i18n="on.step2">2. Choose package</div>
+      <p class="text-[11px] text-white/40 mb-3" data-i18n="on.pkgHint">Tap a package to select · Max Cap = 7× · Silver+ includes Season 01 free</p>
+      <div id="onboardPackages" class="space-y-2 max-h-72 overflow-y-auto"></div>
+      <div id="selectedPkgLabel" class="text-[11px] text-cyan-400 mt-2 hidden"></div>
+      <button type="button" id="btnPaySelected" onclick="paySelectedPackage()" disabled class="btn w-full py-2.5 mt-2 rounded-xl bg-emerald-500 text-black font-bold text-sm opacity-50">Pay selected (USDC)</button>
+    </div>
+    <div class="card p-3">
+      <label class="flex items-start gap-3 text-[12px] text-white/80 cursor-pointer">
+        <input type="checkbox" id="termsCheck" class="mt-1 w-4 h-4 shrink-0 accent-cyan-400" onchange="updateEnterBtn()">
+        <span class="leading-relaxed">
+          I agree to the
+          <button type="button" onclick="event.preventDefault();openTermsModal()" class="text-cyan-400 font-semibold underline underline-offset-2">Terms of Use</button>
+          and
+          <button type="button" onclick="event.preventDefault();openTermsModal()" class="text-cyan-400 font-semibold underline underline-offset-2">Community Guidelines</button>
+        </span>
+      </label>
+      <button type="button" onclick="openTermsModal()" class="mt-2 text-[11px] text-white/40 w-full text-start">Read full terms →</button>
+    </div>
+    <div class="card p-3 text-[11px] text-white/40" data-i18n="on.refDesc">
+      Referral seat without payment is released after 15 minutes.
+    </div>
+    <button type="button" id="btnEnterApp" onclick="enterApp()" disabled class="btn w-full py-3.5 rounded-2xl bg-gradient-to-r from-cyan-400 to-purple-500 text-black font-extrabold opacity-50">Enter GENYX</button>
+    <p class="text-[10px] text-center text-white/30">Demo only · Check Terms to continue</p>
+  </div>
+</div>
+
+<!-- ========== USER APP ========== -->
+<div id="userApp" class="hidden pt-8 min-h-screen">
+  <header class="sticky top-8 z-40 px-4 py-3 glass flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <button type="button" onclick="toggleUserMenu()" class="w-9 h-9 rounded-xl glass flex items-center justify-center lg:hidden shrink-0" aria-label="Menu"><i class="fa-solid fa-bars text-sm"></i></button>
+      <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-400 to-purple-500 flex items-center justify-center text-black font-extrabold text-sm">G</div>
+      <div>
+        <div class="font-bold text-sm tracking-wide neon">GENYX</div>
+        <div class="text-[10px] text-white/40 hidden sm:block">PLAY · BUILD · RISE</div>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button type="button" onclick="cycleLang()" class="px-2.5 py-1 rounded-lg text-[11px] glass" id="langToggle">EN</button>
+      <button type="button" onclick="showPage('notifications')" class="w-9 h-9 rounded-xl glass flex items-center justify-center relative">
+        <i class="fa-solid fa-bell text-sm"></i>
+        <span class="absolute top-1 end-1 w-2 h-2 bg-pink-500 rounded-full"></span>
+      </button>
+      <button type="button" onclick="switchMode('admin')" class="px-2.5 py-1 rounded-lg text-[10px] bg-purple-500/20 text-purple-300 font-semibold">ADMIN</button>
+      <div onclick="showPage('profile')" class="w-9 h-9 rounded-full overflow-hidden border border-white/20 cursor-pointer">
+        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=genyx" class="w-full h-full object-cover" alt="">
+      </div>
+    </div>
+  </header>
+
+  <div id="userMenuOverlay" onclick="toggleUserMenu(false)"></div>
+  <nav id="userMenu" aria-label="Mobile menu">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-white/5">
+      <div class="flex items-center gap-3">
+        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=genyx" class="w-11 h-11 rounded-2xl" alt="">
+        <div>
+          <div class="font-bold text-sm" id="menuName">Aria Nova</div>
+          <div class="text-[11px] text-cyan-400 font-mono">GX-7F3A91C2</div>
+          <span class="badge badge-ok mt-0.5">VERIFIED</span>
+        </div>
+      </div>
+      <button type="button" onclick="toggleUserMenu(false)" class="w-9 h-9 rounded-xl glass flex items-center justify-center text-white/60"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="py-2 text-sm" id="userMenuItems"></div>
+  </nav>
+
+  <aside class="desktop-only fixed top-8 start-0 h-[calc(100vh-2rem)] w-56 bg-[#0a0e17] border-e border-white/5 overflow-y-auto z-30 pt-4">
+    <div class="px-4 mb-4">
+      <div class="text-[10px] text-white/30 uppercase tracking-wider mb-2" data-i18n="nav.menu">Menu</div>
+      <div id="desktopMenu" class="space-y-0.5 text-sm"></div>
+    </div>
+  </aside>
+
+  <main class="px-4 pb-28 pt-3 lg:ms-56 max-w-5xl mx-auto">
+
+    <!-- DASHBOARD -->
+    <div id="page-dashboard" class="page active">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <div class="text-xs text-white/40" data-i18n="dash.welcome">Welcome</div>
+          <div class="font-bold text-lg" id="dashName">Aria Nova</div>
+        </div>
+        <div class="text-end">
+          <div class="text-[10px] text-white/40">Structural ID</div>
+          <div class="font-mono text-cyan-400 text-sm font-bold">GX-7F3A91C2</div>
+          <span class="badge badge-ok">VERIFIED</span>
+        </div>
+      </div>
+
+      <div class="card p-3 mb-3 border border-amber-500/20 text-[11px] text-amber-200/90" data-i18n="dash.dailyNote">
+        New tasks unlock every day at 12:00 (server time). Focus on paid activities — learn from YouTube content while completing tasks.
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+        <div class="card p-4">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-1.5"><span class="text-[11px] font-bold text-cyan-400">MAX CAP</span><button type="button" class="info-btn" onclick="showInfo('maxcap')" title="Info">i</button></div>
+            <span class="text-xs font-bold text-cyan-400">72%</span>
+          </div>
+          <div class="progress bar-cyan mb-2"><div style="width:72%"></div></div>
+          <div class="flex justify-between text-[11px] text-white/50"><span>$504 / $700</span><span>$196 left</span></div>
+        </div>
+        <div class="card p-4">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-1.5"><span class="text-[11px] font-bold text-purple-400">LEVEL 18</span><button type="button" class="info-btn" onclick="showInfo('level')" title="Info">i</button></div>
+            <span class="text-xs font-bold text-purple-400">64%</span>
+          </div>
+          <div class="progress bar-purple mb-2"><div style="width:64%"></div></div>
+          <div class="flex justify-between text-[11px] text-white/50"><span>3,240 / 5,000 XP</span><span>1,760 next</span></div>
+        </div>
+        <div class="card p-4">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-1.5"><span class="text-[11px] font-bold text-amber-400">SEASON 01</span><button type="button" class="info-btn" onclick="showInfo('season')" title="Info">i</button></div>
+            <span class="text-xs font-bold text-amber-400">58%</span>
+          </div>
+          <div class="progress bar-gold mb-2"><div style="width:58%"></div></div>
+          <div class="flex justify-between text-[11px] text-white/50"><span>29 / 50 Tasks</span><span>21 left</span></div>
+        </div>
+      </div>
+
+      <div class="card p-4 mb-4 border border-cyan-500/20">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-xs font-bold text-cyan-400 mb-1">FLUSH OUT STATUS</div>
+            <div class="text-[11px] text-white/50" data-i18n="dash.flushDesc">Account active · Position kept · Referral kept · New commissions pause until capacity expands</div>
+          </div>
+          <span class="badge badge-info">ACTIVE</span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+        <div class="card p-3 text-center"><div class="stat-num text-2xl font-extrabold text-pink-400">12</div><div class="text-[10px] text-white/40" data-i18n="dash.direct">Direct</div></div>
+        <div class="card p-3 text-center"><div class="stat-num text-2xl font-extrabold text-emerald-400">184</div><div class="text-[10px] text-white/40" data-i18n="dash.team">Team</div></div>
+        <div class="card p-3 text-center"><div class="stat-num text-xl font-bold text-cyan-400">$420</div><div class="text-[10px] text-white/40">Left Vol</div></div>
+        <div class="card p-3 text-center"><div class="stat-num text-xl font-bold text-purple-400">$390</div><div class="text-[10px] text-white/40">Right Vol</div></div>
+        <div class="card p-3 text-center"><div class="stat-num text-xl font-bold text-amber-400">39</div><div class="text-[10px] text-white/40">Cycles</div></div>
+        <div class="card p-3 text-center"><div class="stat-num text-xl font-bold text-pink-400">7</div><div class="text-[10px] text-white/40">Vouchers</div></div>
+        <div class="card p-3 text-center"><div class="stat-num text-xl font-bold text-cyan-400" id="genBal">1,280</div><div class="text-[10px] text-white/40">GEN ($0.10)</div></div>
+        <div class="card p-3 text-center"><div class="stat-num text-xl font-bold text-emerald-400">$214.50</div><div class="text-[10px] text-white/40">USDC</div></div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+        <div class="card p-4">
+          <div class="flex items-center gap-1.5 mb-3"><span class="font-bold text-sm">BINARY 20%</span><button type="button" class="info-btn" onclick="showInfo('binary')" title="Info">i</button></div>
+          <div class="grid grid-cols-3 gap-2 text-center">
+            <div><div class="text-lg font-bold text-pink-400">$420</div><div class="text-[10px] text-white/40">LEFT</div></div>
+            <div><div class="text-lg font-bold text-emerald-400">$390</div><div class="text-[10px] text-white/40">RIGHT</div></div>
+            <div><div class="text-lg font-bold text-amber-400">39</div><div class="text-[10px] text-white/40">CYCLES</div></div>
+          </div>
+          <div class="mt-2 text-[10px] text-white/30 text-center">Demo economics · Server calculates real values</div>
+        </div>
+        <div class="card p-4">
+          <div class="flex items-center gap-1.5 mb-2"><span class="font-bold text-sm" data-i18n="dash.withdrawable">WITHDRAWABLE</span><button type="button" class="info-btn" onclick="showInfo('withdraw')" title="Info">i</button></div>
+          <div class="text-2xl font-extrabold text-emerald-400 mb-1">$196.00 USDC</div>
+          <div class="text-[11px] text-white/40 mb-1" data-i18n="dash.wdFee">Fee 1.5% · Min $3 · Max 2 / day</div>
+          <div class="text-[11px] text-white/40 mb-3">Today: 1 / 2</div>
+          <button type="button" onclick="openModal('withdrawModal')" class="btn w-full py-2.5 rounded-xl bg-emerald-500 text-black font-bold text-sm" data-i18n="dash.withdrawBtn">Withdraw</button>
+        </div>
+      </div>
+
+      <div class="card p-4 mb-4 border border-pink-500/20">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="flex items-center gap-1.5 mb-1"><span class="text-sm font-bold">VOUCHERS</span><button type="button" class="info-btn" onclick="showInfo('voucher')" title="Info">i</button></div>
+            <div class="text-[11px] text-white/50">Cycles 39 · Next voucher in 1 cycle</div>
+          </div>
+          <div class="text-3xl font-extrabold text-pink-400">7</div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <button type="button" onclick="showPage('tasks')" class="btn py-3.5 rounded-2xl font-bold text-black bg-gradient-to-r from-cyan-400 to-cyan-500 text-sm"><i class="fa-solid fa-list-check me-1"></i> <span data-i18n="nav.tasks">Tasks</span></button>
+        <button type="button" onclick="showPage('shop')" class="btn py-3.5 rounded-2xl font-semibold glass border border-white/10 text-sm"><i class="fa-solid fa-store me-1"></i> <span data-i18n="nav.shop">Shop</span></button>
+        <button type="button" onclick="showPage('auction')" class="btn py-3 rounded-2xl font-semibold glass border border-purple-500/30 text-sm col-span-2"><i class="fa-solid fa-ticket me-1"></i> <span data-i18n="nav.auction">Lottery</span></button>
+      </div>
+    </div>
+
+    <!-- TASKS -->
+    <div id="page-tasks" class="page">
+      <h2 class="text-xl font-bold mb-1" data-i18n="tasks.title">Task Center</h2>
+      <p class="text-xs text-white/40 mb-2" data-i18n="tasks.subtitle">New tasks at 12:00 daily · Watch YouTube content · Server verifies completion</p>
+      <div class="card p-3 mb-4 text-[11px] border border-cyan-500/20">
+        <div class="font-semibold text-cyan-400 mb-1" data-i18n="tasks.verifyTitle">Verification (anti-fraud)</div>
+        <div class="text-white/50" data-i18n="tasks.verifyDesc">After Complete → Pending 15 min (server time) → checks evidence, timing, duplicates. Flagged = temporary restriction.</div>
+      </div>
+      <div class="flex gap-2 mb-4 overflow-x-auto pb-1">
+        <button type="button" class="px-3 py-1.5 rounded-full text-xs glass badge-info whitespace-nowrap">All</button>
+        <button type="button" class="px-3 py-1.5 rounded-full text-xs glass whitespace-nowrap">Fixed</button>
+        <button type="button" class="px-3 py-1.5 rounded-full text-xs glass whitespace-nowrap">YouTube</button>
+        <button type="button" class="px-3 py-1.5 rounded-full text-xs glass whitespace-nowrap">Social</button>
+        <button type="button" class="px-3 py-1.5 rounded-full text-xs glass whitespace-nowrap">Backlink</button>
+      </div>
+      <div id="taskList" class="space-y-3"></div>
+    </div>
+
+    <!-- SEASONS -->
+    <div id="page-seasons" class="page">
+      <h2 class="text-xl font-bold mb-4" data-i18n="seasons.title">Seasons</h2>
+      <div class="card p-5 mb-4 border border-amber-500/30">
+        <div class="flex justify-between items-start mb-3">
+          <div>
+            <div class="text-lg font-bold text-amber-400">SEASON 01</div>
+            <div class="text-xs text-white/40">Final payout from RESERVE pool after close</div>
+          </div>
+          <span class="badge badge-ok" id="season1Status">ACTIVE</span>
+        </div>
+        <div class="progress bar-gold mb-2"><div id="seasonProgressBar" style="width:58%"></div></div>
+        <div class="grid grid-cols-3 gap-2 text-center text-xs mt-3">
+          <div><div class="font-bold text-lg" id="seasonPct">58%</div><div class="text-white/40">Done</div></div>
+          <div><div class="font-bold text-lg" id="seasonDone">29/50</div><div class="text-white/40">Tasks</div></div>
+          <div><div class="font-bold text-lg text-emerald-400" id="seasonFinalHint">$10–$30</div><div class="text-white/40">Final tier</div></div>
+        </div>
+        <div class="mt-4 text-[11px] text-white/50 space-y-1">
+          <div class="flex justify-between"><span>100% completion</span><span class="text-emerald-400 font-bold">$30</span></div>
+          <div class="flex justify-between"><span>≥80% completion</span><span class="text-cyan-400 font-bold">$20</span></div>
+          <div class="flex justify-between"><span>≥50% completion</span><span class="text-amber-400 font-bold">$10</span></div>
+          <div class="flex justify-between"><span>&lt;50%</span><span class="text-white/30">No final payout</span></div>
+        </div>
+        <button type="button" onclick="closeSeason1()" class="btn w-full mt-4 py-2.5 rounded-xl bg-amber-500 text-black font-bold text-sm">Close Season 01 → unlock Season 02</button>
+        <p class="text-[10px] text-white/30 mt-2 text-center">Like a task: 15 min server verification · paid from RESERVE</p>
+      </div>
+      <div class="card p-4 mb-4 border border-pink-500/20">
+        <div class="font-bold text-sm mb-1">Daily Gift streak</div>
+        <div class="text-[11px] text-white/50 mb-2">24h timer · Claim only after all daily tasks done · Miss window → Day 1</div>
+        <div class="flex justify-between text-sm"><span>Streak day</span><span class="font-bold text-pink-400" id="streakDayLabel">Day 1 · XP only</span></div>
+        <div class="flex justify-between text-sm mt-1"><span>Today's gift</span><span class="font-bold text-emerald-400" id="streakRewardLabel">XP</span></div>
+        <div class="text-[10px] text-white/30 mt-2">Colors: green → blue → yellow → orange → red (final hours)</div>
+      </div>
+      <div class="space-y-3">
+        <div class="card p-4 flex justify-between items-center"><div><div class="font-bold">Season 02 — $9</div><div class="text-[11px] text-white/40">Unlock after closing Season 01 (≥50%)</div></div><span class="badge badge-warn" id="s2badge">LOCKED</span></div>
+        <div class="card p-4 flex justify-between items-center opacity-60"><div><div class="font-bold">Season 03 — $27</div></div><span class="badge badge-warn">LOCKED</span></div>
+        <div class="card p-4 flex justify-between items-center opacity-50"><div><div class="font-bold">Season 04 — $81</div></div><span class="badge badge-warn">LOCKED</span></div>
+      </div>
+    </div>
+
+    <!-- TEAM -->
+    <div id="page-team" class="page">
+      <h2 class="text-xl font-bold mb-4" data-i18n="team.title">Team</h2>
+      <div class="card p-4 mb-4">
+        <div class="text-xs text-white/40 mb-1">Referral link (opens Telegram bot + Mini App)</div>
+        <div class="flex gap-2">
+          <div class="flex-1 font-mono text-xs bg-black/30 rounded-xl px-3 py-2.5 truncate" id="refLink">https://t.me/GENYX_BOT?start=GENYX-RZ82K</div>
+          <button type="button" onclick="copyText(document.getElementById('refLink').textContent)" class="px-4 py-2.5 rounded-xl bg-cyan-500/20 text-cyan-400 text-xs font-bold">Copy</button>
+        </div>
+        <div class="text-[11px] text-amber-400/80 mt-2" data-i18n="team.burnNote">Unpaid referral seats expire after 15 minutes and are removed.</div>
+      </div>
+      <div class="grid grid-cols-2 gap-3 mb-4">
+        <div class="card p-4 text-center"><div class="text-3xl font-extrabold text-pink-400" id="teamDirectN">5</div><div class="text-[10px] text-white/40">Direct</div></div>
+        <div class="card p-4 text-center"><div class="text-3xl font-extrabold text-emerald-400" id="teamTotalN">8</div><div class="text-[10px] text-white/40">Team</div></div>
+        <div class="card p-4 text-center"><div class="text-2xl font-bold text-pink-400" id="teamLeftVol">$230</div><div class="text-[10px] text-white/40">LEFT volume</div></div>
+        <div class="card p-4 text-center"><div class="text-2xl font-bold text-emerald-400" id="teamRightVol">$27</div><div class="text-[10px] text-white/40">RIGHT volume</div></div>
+      </div>
+      <!-- Binary volume report -->
+      <div class="card p-4 mb-4 border border-cyan-500/20" id="binaryReport">
+        <div class="font-bold text-sm mb-1">Binary cycle report</div>
+        <div class="text-[11px] text-white/45 mb-3">Matching uses the <b class="text-white">weaker leg</b> (smaller volume). Paid package amounts (launch prices).</div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs" id="binaryReportBody"></div>
+        <div class="mt-3 p-2 rounded-lg bg-cyan-500/10 text-[11px] text-cyan-300" id="binaryWeakerNote"></div>
+      </div>
+      <div class="card p-4">
+        <div class="mb-2 text-xs text-white/50">Your team graph · Click ID to expand · Tap i for brief profile</div>
+        <div id="treeRoot" class="font-mono text-sm"></div>
+      </div>
+    </div>
+
+    <!-- WALLET -->
+    <div id="page-wallet" class="page">
+      <h2 class="text-xl font-bold mb-4">TON Wallet</h2>
+      <div class="card p-6 text-center mb-4">
+        <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center text-2xl mb-3">TON</div>
+        <div class="font-mono text-sm text-cyan-400 mb-1" id="walletAddr">UQD3...9K2X</div>
+        <span class="badge badge-warn mb-4" id="walletBadge">NOT CONNECTED</span>
+        <div class="space-y-2">
+          <button type="button" id="btnWalletConnect" onclick="doConnectWallet()" class="btn w-full py-3 rounded-xl bg-cyan-500 text-black font-bold text-sm">Connect Wallet</button>
+          <button type="button" id="btnWalletVerify" onclick="toast('Ownership verified (demo)')" class="btn w-full py-2.5 rounded-xl glass text-sm hidden">Verify Ownership</button>
+          <button type="button" id="btnWalletDisconnect" onclick="doDisconnectWallet()" class="btn w-full py-2.5 rounded-xl text-red-400 text-sm hidden">Disconnect</button>
+        </div>
+        <p class="text-[10px] text-white/30 mt-4">Never share seed phrases or private keys</p>
+      </div>
+      <div class="card p-4 text-sm">
+        <div class="font-bold mb-2">GEN on package purchase</div>
+        <div class="text-[11px] text-white/50 space-y-1">
+          <div class="flex justify-between"><span>Bronze · $9</span><span>100 GEN</span></div>
+          <div class="flex justify-between"><span>Silver · $18</span><span>300 + 10</span></div>
+          <div class="flex justify-between"><span>Gold · $60</span><span>1,000 + 30</span></div>
+          <div class="flex justify-between"><span>Platinum · $180</span><span>3,000 + 100</span></div>
+          <div class="flex justify-between"><span>Diamond · $600</span><span>10,000 + 400</span></div>
+          <div class="text-white/30 mt-2">1 GEN ≈ $0.10 · Max Cap = 7× · Launch 50% off</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SHOP -->
+    <div id="page-shop" class="page">
+      <h2 class="text-xl font-bold mb-1" data-i18n="shop.title">Shop</h2>
+      <p class="text-xs text-white/40 mb-4">GEN · Profile · Recharge · Demo only</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="shopGrid"></div>
+    </div>
+
+    <!-- PACKAGES -->
+    <div id="page-packages" class="page">
+      <h2 class="text-xl font-bold mb-2">Packages</h2>
+      <div class="flex flex-wrap items-center gap-2 mb-2">
+        <span class="launch-badge" id="launchBadgePkg">LAUNCH 50% OFF</span>
+        <span class="font-mono text-amber-400 text-xs font-bold" id="launchTimerPkg">--:--:--:--</span>
+      </div>
+      <p class="text-xs text-white/40 mb-2">Max Cap = 7× · Season 01 free on Silver+</p>
+      <div class="space-y-3 mt-3" id="packageList"></div>
+    </div>
+
+    <!-- AUCTION -->
+    <div id="page-auction" class="page">
+      <h2 class="text-xl font-bold mb-1" data-i18n="nav.auction">Lottery</h2>
+      <p class="text-xs text-white/40 mb-2">C=1 · B=2 · A=3 GEN/entry · Countdown only on entry · Prize shown per hall</p>
+      <div class="flex gap-2 mb-3 text-[10px]">
+        <span class="badge badge-info">GEN: <span id="auctionGenBal">1280</span></span>
+        <span class="badge badge-ok">Your ID: GX-7F3A91C2</span>
+      </div>
+      <div class="space-y-3" id="auctionHalls"></div>
+      <div class="card p-4 mt-4">
+        <div class="font-bold text-sm mb-2">Public winners report</div>
+        <div id="auctionReports" class="text-xs text-white/50 space-y-1"></div>
+      </div>
+    </div>
+
+    <!-- TICKETS -->
+    <div id="page-tickets" class="page">
+      <h2 class="text-xl font-bold mb-4">Support</h2>
+      <div class="card p-4 mb-4">
+        <textarea id="ticketInput" rows="3" placeholder="Your question..." class="mb-3"></textarea>
+        <button type="button" onclick="submitTicket()" class="btn w-full py-2.5 rounded-xl bg-cyan-500 text-black font-bold text-sm">Submit</button>
+      </div>
+      <div class="space-y-3">
+        <div class="card p-4 flex justify-between items-center"><div><div class="font-semibold text-sm">Ticket 1842</div><div class="text-[11px] text-white/40">AI answered</div></div><span class="badge badge-ok">AI</span></div>
+        <div class="card p-4 flex justify-between items-center"><div><div class="font-semibold text-sm">Ticket 1848</div><div class="text-[11px] text-white/40">Human review</div></div><span class="badge badge-warn">ADMIN</span></div>
+      </div>
+    </div>
+
+    <!-- NOTIFICATIONS -->
+    <div id="page-notifications" class="page">
+      <h2 class="text-xl font-bold mb-4" data-i18n="notif.title">Notifications</h2>
+      <div class="space-y-2" id="notifList"></div>
+    </div>
+
+    <!-- RULES -->
+    <div id="page-rules" class="page">
+      <h2 class="text-xl font-bold mb-2 neon">GENYX CODE</h2>
+      <div class="card p-5 space-y-2 text-sm text-white/70" id="rulesContent"></div>
+      <div class="card p-4 mt-4 text-xs space-y-2">
+        <div class="flex justify-between"><span>1st</span><span class="badge badge-warn">WARNING</span></div>
+        <div class="flex justify-between"><span>2nd</span><span class="badge badge-live">SUSPENSION</span></div>
+        <div class="flex justify-between"><span>3rd</span><span class="badge badge-live">POSITION REVIEW</span></div>
+      </div>
+    </div>
+
+    <!-- PROFILE -->
+    <div id="page-profile" class="page">
+      <div class="text-center mb-6">
+        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=genyx" class="w-24 h-24 mx-auto rounded-3xl border-2 border-cyan-500/40 mb-3" alt="">
+        <div class="text-xl font-bold" id="profName">Aria Nova</div>
+        <div class="font-mono text-cyan-400 text-sm">GX-7F3A91C2</div>
+        <span class="badge badge-ok mt-1">VERIFIED · L18</span>
+      </div>
+      <div class="card p-4 space-y-3 text-sm mb-4">
+        <div class="flex justify-between"><span class="text-white/40">Username</span><span id="profUser">@aria_nova</span></div>
+        <div class="flex justify-between"><span class="text-white/40">Language</span><span id="profileLang">فارسی</span></div>
+        <div class="flex justify-between"><span class="text-white/40">Wallet</span><span class="text-emerald-400">Connected</span></div>
+        <div class="flex justify-between"><span class="text-white/40">Bio</span><span class="text-white/60" id="profBio">Building the future</span></div>
+      </div>
+      <button type="button" onclick="openModal('profileModal')" class="btn w-full py-3 rounded-xl glass border border-cyan-500/30 font-semibold text-sm">Complete / Edit Profile</button>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="page-settings" class="page">
+      <h2 class="text-xl font-bold mb-4">Settings</h2>
+      <div class="card p-4 space-y-4 text-sm">
+        <div class="flex justify-between items-center">
+          <span>Language</span>
+          <div class="flex gap-2">
+            <button type="button" onclick="setLang('en')" class="lang-btn px-3 py-1 rounded-lg text-xs glass" data-lang="en">EN</button>
+            <button type="button" onclick="setLang('fa')" class="lang-btn px-3 py-1 rounded-lg text-xs glass" data-lang="fa">FA</button>
+            <button type="button" onclick="setLang('ar')" class="lang-btn px-3 py-1 rounded-lg text-xs glass" data-lang="ar">AR</button>
+          </div>
+        </div>
+        <div class="flex justify-between items-center"><span>Security</span><button type="button" onclick="showPage('security')" class="text-cyan-400 text-xs">View</button></div>
+      </div>
+    </div>
+
+    <div id="page-security" class="page">
+      <h2 class="text-xl font-bold mb-4">Security</h2>
+      <div class="card p-5 border border-emerald-500/20 mb-4">
+        <div class="font-bold text-emerald-400 mb-1">Account clear</div>
+        <div class="text-xs text-white/40">No active restrictions · Anti-fraud monitoring on</div>
+      </div>
+    </div>
+  </main>
+
+
+  <nav class="fixed bottom-0 inset-x-0 z-40 glass border-t border-white/5 lg:hidden">
+    <div class="flex justify-around py-2 max-w-lg mx-auto bottom-nav">
+      <button type="button" onclick="showPage('dashboard')" class="active flex flex-col items-center gap-0.5 text-[10px] text-white/40 w-14" data-page="dashboard"><i class="fa-solid fa-house text-base"></i><span data-i18n="nav.home">Home</span></button>
+      <button type="button" onclick="showPage('tasks')" class="flex flex-col items-center gap-0.5 text-[10px] text-white/40 w-14" data-page="tasks"><i class="fa-solid fa-list-check text-base"></i><span data-i18n="nav.tasks">Tasks</span></button>
+      <button type="button" onclick="showPage('shop')" class="flex flex-col items-center gap-0.5 text-[10px] text-white/40 w-14" data-page="shop"><i class="fa-solid fa-store text-base"></i><span data-i18n="nav.shop">Shop</span></button>
+      <button type="button" onclick="showPage('team')" class="flex flex-col items-center gap-0.5 text-[10px] text-white/40 w-14" data-page="team"><i class="fa-solid fa-users text-base"></i><span data-i18n="nav.team">Team</span></button>
+      <button type="button" onclick="showPage('auction')" class="flex flex-col items-center gap-0.5 text-[10px] text-white/40 w-14" data-page="auction"><i class="fa-solid fa-ticket text-base"></i><span data-i18n="nav.auction">Lottery</span></button>
+    </div>
+  </nav>
+</div>
+
+
+<!-- ADMIN -->
+<div id="adminApp" class="hidden min-h-screen pt-8">
+  <div id="adminLogin" class="fixed inset-0 z-[200] flex items-center justify-center bg-[#070b14]">
+    <div class="w-full max-w-sm px-6">
+      <div class="text-center mb-6">
+        <div class="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-purple-500 to-cyan-400 flex items-center justify-center text-black font-extrabold text-xl mb-3">G</div>
+        <h1 class="text-xl font-bold">GENYX ADMIN</h1>
+        <p class="text-xs text-amber-400 mt-1">DEMO ONLY — no real credentials</p>
+      </div>
+      <div class="card p-5 space-y-3">
+        <input type="text" value="admin@genyx.demo" readonly>
+        <input type="password" value="demo" readonly>
+        <input type="text" placeholder="2FA (any 6 digits)" maxlength="6">
+        <button type="button" onclick="adminLogin()" class="btn w-full py-3 rounded-xl bg-purple-500 text-white font-bold">LOGIN</button>
+      </div>
+      <button type="button" onclick="switchMode('user')" class="w-full mt-4 text-xs text-white/40 text-center">Back to User</button>
+    </div>
+  </div>
+  <div id="adminMain" class="hidden">
+    <header class="sticky top-8 z-20 glass px-4 py-3 flex items-center justify-between border-b border-white/5">
+      <div class="flex gap-2 overflow-x-auto text-xs">
+        <button type="button" onclick="showAdminTab('dash')" class="admin-tab px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-400" data-tab="dash">Dashboard</button>
+        <button type="button" onclick="showAdminTab('launch')" class="admin-tab px-3 py-1.5 rounded-lg text-white/50" data-tab="launch">Launch</button>
+        <button type="button" onclick="showAdminTab('packages')" class="admin-tab px-3 py-1.5 rounded-lg text-white/50" data-tab="packages">Packages</button>
+        <button type="button" onclick="showAdminTab('lottery')" class="admin-tab px-3 py-1.5 rounded-lg text-white/50" data-tab="auctions">Lottery</button>
+        <button type="button" onclick="showAdminTab('tasks')" class="admin-tab px-3 py-1.5 rounded-lg text-white/50" data-tab="tasks">Tasks</button>
+        <button type="button" onclick="showAdminTab('fraud')" class="admin-tab px-3 py-1.5 rounded-lg text-white/50" data-tab="fraud">Fraud</button>
+        <button type="button" onclick="showAdminTab('withdrawals')" class="admin-tab px-3 py-1.5 rounded-lg text-white/50" data-tab="withdrawals">Withdrawals</button>
+      </div>
+      <button type="button" onclick="switchMode('user')" class="px-2 py-1 rounded-lg text-[10px] bg-cyan-500/20 text-cyan-400 font-semibold shrink-0">USER</button>
+    </header>
+    <div class="p-4 max-w-5xl mx-auto" id="adminTabContent"></div>
+  </div>
+</div>
+
+<!-- MODALS -->
+<div id="infoModal" class="fixed inset-0 z-[200] hidden modal-bg flex items-end sm:items-center justify-center p-4">
+  <div class="w-full max-w-md card p-6 rounded-2xl">
+    <div class="flex justify-between items-start mb-3">
+      <h3 id="infoTitle" class="font-bold text-lg"></h3>
+      <button type="button" onclick="closeInfo()" class="text-white/40 text-lg">X</button>
+    </div>
+    <div id="infoBody" class="text-sm text-white/70 leading-relaxed"></div>
+  </div>
+</div>
+
+<div id="withdrawModal" class="fixed inset-0 z-[200] hidden modal-bg flex items-end sm:items-center justify-center p-4">
+  <div class="w-full max-w-md card p-6 rounded-2xl">
+    <h3 class="font-bold text-lg mb-4">Withdrawal</h3>
+    <div class="space-y-2 text-sm mb-4">
+      <div class="flex justify-between"><span class="text-white/40">Amount</span><span class="font-bold text-emerald-400">$196.00</span></div>
+      <div class="flex justify-between"><span class="text-white/40">Fee 1.5%</span><span>$2.94</span></div>
+      <div class="flex justify-between"><span class="text-white/40">You receive</span><span class="font-bold">$193.06 USDC</span></div>
+      <div class="flex justify-between"><span class="text-white/40">Min</span><span>$3</span></div>
+      <div class="flex justify-between"><span class="text-white/40">Network</span><span>TON</span></div>
+      <div class="flex justify-between"><span class="text-white/40">Wallet</span><span class="font-mono text-xs">UQD3...9K2X</span></div>
+    </div>
+    <button type="button" onclick="confirmWithdraw()" class="btn w-full py-3 rounded-xl bg-emerald-500 text-black font-bold mb-2">Confirm</button>
+    <button type="button" onclick="closeModal('withdrawModal')" class="btn w-full py-2 text-white/40 text-sm">Cancel</button>
+  </div>
+</div>
+
+<div id="profileModal" class="fixed inset-0 z-[200] hidden modal-bg flex items-end sm:items-center justify-center p-4">
+  <div class="w-full max-w-md card p-6 rounded-2xl">
+    <h3 class="font-bold text-lg mb-4">Complete profile</h3>
+    <div class="space-y-3 mb-4">
+      <input id="editName" placeholder="Display name" value="Aria Nova">
+      <input id="editUser" placeholder="Username" value="aria_nova">
+      <textarea id="editBio" rows="2" placeholder="Bio">Building the future</textarea>
+    </div>
+    <button type="button" onclick="saveProfile()" class="btn w-full py-3 rounded-xl bg-cyan-500 text-black font-bold mb-2">Save</button>
+    <button type="button" onclick="closeModal('profileModal')" class="btn w-full py-2 text-white/40 text-sm">Cancel</button>
+  </div>
+</div>
+
+<div id="taskDestModal" class="fixed inset-0 z-[200] hidden modal-bg flex items-end sm:items-center justify-center p-4">
+  <div class="w-full max-w-md card p-6 rounded-2xl">
+    <h3 id="destTitle" class="font-bold text-lg mb-2"></h3>
+    <p id="destDesc" class="text-sm text-white/50 mb-4"></p>
+    <a id="destLink" href="#" target="_blank" rel="noopener" class="btn block w-full py-3 rounded-xl bg-cyan-500 text-black font-bold text-center text-sm mb-2">Open destination</a>
+    <button type="button" id="destCompleteBtn" class="btn w-full py-2.5 rounded-xl glass text-sm mb-2">Mark complete (submit evidence)</button>
+    <button type="button" onclick="closeModal('taskDestModal')" class="btn w-full py-2 text-white/40 text-sm">Close</button>
+  </div>
+</div>
+
+<div id="toast" class="hidden fixed bottom-24 left-1/2 z-[250] px-5 py-3 rounded-2xl text-sm font-medium shadow-2xl toast"></div>
+<div id="modalRoot"></div>
+
+<script>
+const state = {
+  walletConnected: false,
+  packageBought: false,
+  seasonActive: false,
+  selectedPackageId: null,
+  termsAccepted: false,
+  genBalance: 1280,
+  entered: false
+};
+
+function setupCompanyContact(){
+  const phone=companyContact.phone, email=companyContact.email, address=companyContact.address;
+  const phoneLink=document.getElementById('headerPhone');
+  phoneLink.href=`tel:${phone.replace(/[^+\\d]/g,'')}`; phoneLink.querySelector('span').textContent=phone;
+  const emailLink=document.getElementById('headerEmail');
+  emailLink.href=`mailto:${email}`; emailLink.querySelector('span').textContent=email;
+  document.querySelector('#headerAddress span').textContent=address;
+  document.getElementById('footerAddress').textContent=address;
+  document.getElementById('supportEmail').href=`mailto:${email}`;
+  document.getElementById('supportWhatsapp').href=`https://wa.me/${companyContact.whatsapp.replace(/[^\\d]/g,'')}`;
+}
+function toggleSupportCta(){
+  const cta=document.getElementById('supportCta'), trigger=cta.querySelector('.support-cta__trigger');
+  const open=cta.classList.toggle('open'); trigger.setAttribute('aria-expanded',String(open));
+}
+function openSupportTicket(){
+  document.getElementById('supportCta').classList.remove('open');
+  document.querySelector('#supportCta .support-cta__trigger').setAttribute('aria-expanded','false');
+  showPage('tickets');
+  document.getElementById('ticketInput')?.focus();
+}
+
+const i18n = {
+en:{
+"on.step1":"1. Connect TON Wallet","on.step2":"2. Choose package","on.timerLabel":"Launch countdown",
+"on.pkgHint":"Tap a package to select · Max Cap = 7× · Silver+ includes Season 01 free",
+"on.termsPrefix":"I have read and accept the","on.refDesc":"Referral seat without payment is released after 15 minutes.",
+"nav.menu":"Menu","nav.home":"Home","nav.tasks":"Tasks","nav.shop":"Shop","nav.team":"Team","nav.profile":"Profile",
+"nav.dashboard":"Dashboard","nav.seasons":"Seasons","nav.wallet":"Wallet","nav.tickets":"Support","nav.notifications":"Notifications","nav.rules":"Rules","nav.settings":"Settings","nav.security":"Security","nav.auction":"Lottery","nav.packages":"Packages",
+"dash.welcome":"Welcome","dash.flushDesc":"Account active · Position kept · Referral kept · New commissions pause until capacity expands",
+"dash.direct":"Direct","dash.team":"Team","dash.withdrawable":"WITHDRAWABLE","dash.wdFee":"Fee 1.5% · Min $3 · Max 2 / day","dash.withdrawBtn":"Withdraw",
+"dash.dailyNote":"New tasks unlock daily at 12:00 (server time). Focus on earning activities and YouTube learning content while completing tasks.",
+"tasks.title":"Task Center","tasks.subtitle":"New tasks at 12:00 · YouTube content · Server verification",
+"tasks.verifyTitle":"Verification (anti-fraud)","tasks.verifyDesc":"After Complete → 15 min Pending (server time) → evidence, timing, duplicates. Abuse → temporary restriction.",
+"seasons.title":"Seasons","team.title":"Team","team.burnNote":"Unpaid referral seats are removed after 15 minutes.","shop.title":"Shop","notif.title":"Notifications"
+},
+fa:{
+"on.step1":"۱. اتصال کیف پول TON","on.step2":"۲. انتخاب پکیج","on.timerLabel":"شمارش معکوس افتتاحیه",
+"on.pkgHint":"روی پکیج بزنید تا انتخاب شود · Max Cap = ۷× · از نقره به بالا فصل ۱ رایگان",
+"on.termsPrefix":"قوانین GENYX را خوانده و می‌پذیرم","on.refDesc":"جایگاه معرف بدون پرداخت بعد از ۱۵ دقیقه آزاد می‌شود.",
+"nav.menu":"منو","nav.home":"خانه","nav.tasks":"تسک‌ها","nav.shop":"فروشگاه","nav.team":"تیم","nav.profile":"پروفایل",
+"nav.dashboard":"داشبورد","nav.seasons":"فصل‌ها","nav.wallet":"کیف پول","nav.tickets":"پشتیبانی","nav.notifications":"اعلان‌ها","nav.rules":"قوانین","nav.settings":"تنظیمات","nav.security":"امنیت","nav.auction":"لاتاری","nav.packages":"پکیج‌ها",
+"dash.welcome":"خوش آمدید","dash.flushDesc":"حساب فعال · موقعیت حفظ · رفرال حفظ · پورسانت جدید تا گسترش ظرفیت متوقف",
+"dash.direct":"مستقیم","dash.team":"تیم","dash.withdrawable":"قابل برداشت","dash.wdFee":"کارمزد ۱.۵٪ · حداقل ۳ دلار · حداکثر ۲ بار در روز","dash.withdrawBtn":"برداشت",
+"dash.dailyNote":"تسک‌های جدید هر روز ساعت ۱۲:۰۰ (وقت سرور).",
+"tasks.title":"مرکز تسک","tasks.subtitle":"تسک جدید ساعت ۱۲ · تأیید سمت سرور",
+"tasks.verifyTitle":"راستی‌آزمایی","tasks.verifyDesc":"پس از Complete → ۱۵ دقیقه Pending.",
+"seasons.title":"فصل‌ها","team.title":"تیم","team.burnNote":"جایگاه معرف بدون پرداخت بعد از ۱۵ دقیقه حذف می‌شود.","shop.title":"فروشگاه","notif.title":"اعلان‌ها"
+},
+ar:{
+"on.step1":"١. ربط محفظة TON","on.step2":"٢. اختر الباقة","on.timerLabel":"عدّاد الإطلاق",
+"on.pkgHint":"اضغط لاختيار الباقة · Max Cap = ٧× · من الفضي فصاعدًا الموسم ١ مجانًا",
+"on.termsPrefix":"قرأت وأوافق على","on.refDesc":"مقعد الإحالة بدون دفع يُلغى بعد ١٥ دقيقة.",
+"nav.menu":"القائمة","nav.home":"الرئيسية","nav.tasks":"المهام","nav.shop":"المتجر","nav.team":"الفريق","nav.profile":"الملف",
+"nav.dashboard":"لوحة التحكم","nav.seasons":"المواسم","nav.wallet":"المحفظة","nav.tickets":"الدعم","nav.notifications":"الإشعارات","nav.rules":"القواعد","nav.settings":"الإعدادات","nav.security":"الأمان","nav.auction":"يانصيب","nav.packages":"الباقات",
+"dash.welcome":"مرحبًا","dash.flushDesc":"الحساب نشط · المركز محفوظ",
+"dash.direct":"مباشر","dash.team":"الفريق","dash.withdrawable":"قابل للسحب","dash.wdFee":"عمولة ١.٥٪ · حد أدنى ٣$","dash.withdrawBtn":"سحب",
+"dash.dailyNote":"مهام جديدة يوميًا الساعة ١٢:٠٠.",
+"tasks.title":"مركز المهام","tasks.subtitle":"مهام جديدة ١٢:٠٠ · تحقق الخادم",
+"tasks.verifyTitle":"التحقق","tasks.verifyDesc":"بعد الإكمال → ١٥ دقيقة قيد المراجعة.",
+"seasons.title":"المواسم","team.title":"الفريق","team.burnNote":"مقعد الإحالة بدون دفع يُحذف بعد ١٥ دقيقة.","shop.title":"المتجر","notif.title":"الإشعارات"
+}
+};
+let currentLang = 'en';
+function t(k){return (i18n[currentLang]&&i18n[currentLang][k])||i18n.en[k]||k}
+function setLang(lang){
+  if(!i18n[lang]) lang='en';
+  currentLang=lang;
+  const root=document.getElementById('htmlRoot');
+  root.lang=lang;
+  root.dir=(lang==='fa'||lang==='ar')?'rtl':'ltr';
+  const lt=document.getElementById('langToggle');
+  if(lt) lt.textContent=lang==='en'?'FA':'EN';
+  const pl=document.getElementById('profileLang');
+  if(pl) pl.textContent=lang==='fa'?'فارسی':lang==='ar'?'العربية':'English';
+  document.querySelectorAll('[data-i18n]').forEach(el=>{const k=el.getAttribute('data-i18n');if(i18n[lang]&&i18n[lang][k])el.textContent=i18n[lang][k]});
+  document.querySelectorAll('.lang-btn').forEach(b=>b.classList.toggle('active',b.dataset.lang===lang));
+  toggleUserMenu(false);
+  buildMenus(); renderTasks(); renderShop(); renderNotifs(); renderRules(); renderAuctions(); renderPackages(); renderTree();
+}
+
+const userPages=[
+  {id:'dashboard',icon:'fa-house',key:'nav.dashboard'},
+  {id:'tasks',icon:'fa-list-check',key:'nav.tasks'},
+  {id:'seasons',icon:'fa-trophy',key:'nav.seasons'},
+  {id:'packages',icon:'fa-box',key:'nav.packages'},
+  {id:'team',icon:'fa-users',key:'nav.team'},
+  {id:'wallet',icon:'fa-wallet',key:'nav.wallet'},
+  {id:'shop',icon:'fa-store',key:'nav.shop'},
+  {id:'auction',icon:'fa-ticket',key:'nav.auction'},
+  {id:'tickets',icon:'fa-headset',key:'nav.tickets'},
+  {id:'notifications',icon:'fa-bell',key:'nav.notifications'},
+  {id:'rules',icon:'fa-scroll',key:'nav.rules'},
+  {id:'profile',icon:'fa-user',key:'nav.profile'},
+  {id:'settings',icon:'fa-gear',key:'nav.settings'},
+];
+function buildMenus(){
+  const mk=p=>`<a onclick="showPage('${p.id}');toggleUserMenu(false)" class="flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 rounded-lg cursor-pointer text-white/70 hover:text-cyan-400"><i class="fa-solid ${p.icon} w-5 text-center"></i><span>${t(p.key)}</span></a>`;
+  document.getElementById('userMenuItems').innerHTML=userPages.map(mk).join('');
+  document.getElementById('desktopMenu').innerHTML=userPages.map(mk).join('');
+}
+function showPage(id){
+  document.querySelectorAll('#userApp .page').forEach(p=>p.classList.remove('active'));
+  const el=document.getElementById('page-'+id); if(el) el.classList.add('active');
+  document.querySelectorAll('.bottom-nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===id));
+  window.scrollTo(0,0);
+}
+function toggleUserMenu(force){
+  const m=document.getElementById('userMenu'), o=document.getElementById('userMenuOverlay');
+  if(!m||!o) return;
+  const open = force !== undefined ? !!force : !m.classList.contains('open');
+  m.classList.toggle('open', open);
+  o.classList.toggle('open', open);
+  document.body.style.overflow = open ? 'hidden' : '';
+}
+function toast(msg,type='ok'){
+  const el=document.getElementById('toast');
+  el.textContent=msg;
+  el.className=`fixed bottom-24 left-1/2 z-[250] px-5 py-3 rounded-2xl text-sm font-medium shadow-2xl toast ${type==='ok'?'bg-emerald-500 text-black':'bg-red-500 text-white'}`;
+  el.classList.remove('hidden');
+  clearTimeout(window._tt); window._tt=setTimeout(()=>el.classList.add('hidden'),2800);
+}
+function openModal(id){document.getElementById(id).classList.remove('hidden')}
+function closeModal(id){document.getElementById(id).classList.add('hidden')}
+function confirmWithdraw(){
+  closeModal('withdrawModal');
+  toast(currentLang==='fa'?'درخواست ثبت شد · کارمزد ۱.۵٪ (دمو)':'Request submitted · 1.5% fee (demo)');
+}
+function copyText(tx){navigator.clipboard.writeText(tx).then(()=>toast(currentLang==='fa'?'کپی شد':'Copied')).catch(()=>{})}
+
+const infos={
+maxcap:{fa:['سقف پاداش','حداکثر ظرفیت پاداش پکیج شما. در ۱۰۰٪ فلش‌اوت می‌شود؛ حساب و جایگاه حفظ می‌ماند.'],en:['Max Cap','Max reward capacity for your package. At 100% flush-out; account stays.']},
+level:{fa:['سطح','بر اساس XP.'],en:['Level','Based on XP progress.']},
+season:{fa:['فصل','تسک‌های روزانه از ۱۲:۰۰. پیشرفت با خرید مجدد ریست نمی‌شود.'],en:['Season','Daily tasks from 12:00. Progress kept on re-entry.']},
+binary:{fa:['باینری','حجم چپ و راست تیم شما.'],en:['Binary','Your left and right team volume.']},
+withdraw:{fa:['برداشت','حداقل ۳ دلار · کارمزد ۱.۵٪ · حداکثر ۲ بار در روز.'],en:['Withdraw','Min $3 · Fee 1.5% · Max 2/day.']},
+voucher:{fa:['ووچر','با فعالیت تیمی به‌دست می‌آید و در فروشگاه مصرف می‌شود.'],en:['Voucher','Earned from team activity; spend in Shop.']},
+timeext:{fa:['تمدید زمان','مهلت فصل را ۷ روز بیشتر می‌کند.'],en:['Time Extension','Adds 7 days to season deadline.']},
+recharge:{fa:['شارژ حساب','با انتخاب پکیج و پرداخت USDC از طریق TON Keeper، ظرفیت کسب درآمد افزایش می‌یابد.'],en:['Recharge','Pick a package and pay USDC via TON Keeper to raise earning capacity.']},
+premiumTask:{fa:['تسک پرمیوم','یک جایگاه اضافه برای تسک روزانه با پاداش بالاتر — کمک می‌کند سریع‌تر GEN بگیرید.'],en:['Premium Task','Extra daily task slot with higher reward — earn GEN faster.']},
+premiumBadge:{fa:['بج پرمیوم','نشان طلایی روی پروفایل؛ سیگنال اعتبار در تیم و شبکه.'],en:['Premium Badge','Gold badge on profile — status signal in your network.']},
+changeName:{fa:['تغییر نام نمایشی','نام عمومی پروفایل را با پرداخت GEN عوض کنید.'],en:['Change Display Name','Update public name for GEN tokens.']},
+changeAvatar:{fa:['تغییر آواتار','تصویر پروفایل جدید با پرداخت GEN.'],en:['Change Avatar','New profile image for GEN tokens.']},
+changeUser:{fa:['تغییر نام کاربری','@یوزرنیم یکتا (محدود) با پرداخت GEN.'],en:['Change Username','Unique @username (limited) for GEN.']},
+dailyGift:{fa:['هدیه روزانه','روز۱ فقط XP · روز۲ ۱$ … حداکثر ۱۰$. فقط بعد از انجام همه تسک‌های روز باز می‌شود. تایمر ۲۴ ساعته رنگی (سبز→آبی→زرد→نارنجی→قرمز). اگر تا پایان تایمر Claim نکنید به روز۱ برمی‌گردید. پرداخت از RESERVE.'],en:['Daily Gift','Day1 XP only · Day2 $1 … locks at $10. Unlocks only after all daily tasks are done. 24h colored countdown (green→blue→yellow→orange→red). If not claimed before timer ends → reset to Day 1. Paid from RESERVE.']},
+};
+function showInfo(key){
+  const d=infos[key]; if(!d)return;
+  const [title,body]=d[currentLang]||d.en;
+  document.getElementById('infoTitle').textContent=title;
+  document.getElementById('infoBody').textContent=body;
+  document.getElementById('infoModal').classList.remove('hidden');
+}
+function closeInfo(){document.getElementById('infoModal').classList.add('hidden')}
+
+// TASKS
+let tasks=[
+  {id:201,title:'YouTube: GENYX intro',type:'YouTube',desc:'Watch the official intro and answer one question',reward:'15 GEN',status:'available',url:'https://www.youtube.com/watch?v=dQw4w9WgXcQ',dest:'Watch full video on YouTube then return and complete.'},
+  {id:202,title:'Daily check-in',type:'Fixed',desc:'Open the app after 12:00 server time',reward:'10 XP',status:'available'},
+  {id:203,title:'Channel post',type:'Social',desc:'View pinned post on official channel',reward:'10 GEN',status:'available',url:'https://t.me/GENYX_BOT',dest:'Open Telegram channel / bot and view the pinned update.'},
+  {id:204,title:'Partner landing',type:'Backlink',desc:'Open partner page and stay 30s',reward:'20 GEN',status:'available',url:'https://example.com/genyx-partner',dest:'Open the partner page, complete the short form, return here.'},
+  {id:205,title:'X (Twitter) share',type:'Social',desc:'Open campaign post on X',reward:'12 GEN',status:'started',url:'https://x.com',dest:'Open the campaign post on X, like or reply, then complete.'},
+  {id:206,title:'Learn binary basics',type:'YouTube',desc:'Educational video — binary structure',reward:'25 GEN',status:'pending',countdown:720,url:'https://www.youtube.com/results?search_query=network+marketing+binary',dest:'Watch the educational video then submit.'},
+];
+function renderTasks(){
+  const el=document.getElementById('taskList');
+  el.innerHTML=tasks.map(m=>{
+    let badge='',actions='';
+    if(m.status==='available'){
+      badge='<span class="badge badge-info">AVAILABLE</span>';
+      actions=`<button type="button" onclick="taskStart(${m.id})" class="text-xs px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-400 font-semibold">START</button>`;
+    } else if(m.status==='started'){
+      badge='<span class="badge badge-purple">STARTED</span>';
+      actions=`${m.url?`<button type="button" onclick="openTaskDest(${m.id})" class="text-xs px-3 py-1.5 rounded-lg glass font-semibold">OPEN PAGE</button>`:''}
+        <button type="button" onclick="taskComplete(${m.id})" class="text-xs px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 font-semibold">COMPLETE</button>`;
+    } else if(m.status==='pending'){
+      badge='<span class="badge badge-warn">PENDING VERIFY</span>';
+      actions=`<span class="text-xs text-amber-400 font-mono" id="cd-${m.id}">12:00</span>`;
+    } else if(m.status==='done'){
+      badge='<span class="badge badge-ok">REWARDED</span>';
+      actions='<span class="text-xs text-white/30">Done</span>';
+    }
+    return`<div class="card p-4">
+      <div class="flex justify-between items-start mb-2">
+        <div>
+          <div class="font-semibold text-sm">TASK ${m.id} · ${m.title}</div>
+          <div class="text-[11px] text-white/40 mt-0.5">${m.type} · ${m.desc}</div>
+        </div>
+        ${badge}
+      </div>
+      <div class="flex justify-between items-center mt-3">
+        <span class="text-emerald-400 text-sm font-bold">${m.reward}</span>
+        <div class="flex gap-2 items-center flex-wrap justify-end">${actions}</div>
+      </div>
+    </div>`}).join('');
+}
+function taskStart(id){
+  const m=tasks.find(x=>x.id===id); if(!m||m.status!=='available')return;
+  m.status='started';
+  toast(currentLang==='fa'?'تسک شروع شد':'Task started');
+  renderTasks();
+  if(m.url) openTaskDest(id);
+}
+function openTaskDest(id){
+  const m=tasks.find(x=>x.id===id); if(!m)return;
+  document.getElementById('destTitle').textContent=m.title;
+  document.getElementById('destDesc').textContent=m.dest||m.desc;
+  const a=document.getElementById('destLink');
+  a.href=m.url||'#';
+  a.style.display=m.url?'block':'none';
+  const btn=document.getElementById('destCompleteBtn');
+  btn.onclick=()=>{closeModal('taskDestModal');taskComplete(id)};
+  openModal('taskDestModal');
+}
+function taskComplete(id){
+  const m=tasks.find(x=>x.id===id); if(!m||(m.status!=='started'&&m.status!=='available'))return;
+  m.status='pending'; m.countdown=900;
+  onDailyTaskProgress();
+  renderTasks();
+  document.getElementById('modalRoot').innerHTML=`<div class="fixed inset-0 z-[200] modal-bg flex items-end sm:items-center justify-center p-4" onclick="if(event.target===this)document.getElementById('modalRoot').innerHTML=''">
+    <div class="w-full max-w-md card p-6 rounded-2xl">
+      <h3 class="font-bold text-lg mb-3">Verification Status</h3>
+      <div class="text-xs text-white/50 mb-3">TASK ${m.id} · ${m.title}</div>
+      <div class="space-y-2 text-sm mb-4">
+        <div class="flex justify-between"><span>Evidence submitted</span><span class="text-emerald-400">✓</span></div>
+        <div class="flex justify-between"><span>Server verification</span><span class="text-amber-400">Pending</span></div>
+        <div class="flex justify-between"><span>Fraud checks</span><span class="text-amber-400">Queued</span></div>
+        <div class="flex justify-between"><span>Final reward</span><span class="text-white/40">After 15 min</span></div>
+      </div>
+      <div class="text-[11px] text-white/40 mb-4">UI countdown only. Real verification uses server time. Fake evidence → FLAGGED.</div>
+      <button type="button" onclick="document.getElementById('modalRoot').innerHTML=''" class="btn w-full py-2.5 rounded-xl bg-cyan-500 text-black font-bold text-sm">OK</button>
+    </div>
+  </div>`;
+  toast(currentLang==='fa'?'ارسال شد · راستی‌آزمایی سرور تا ۱۵ دقیقه':'Submitted · server verification up to 15 min');
+}
+
+// DAILY GIFT STREAK — 24h countdown window
+// Day1=XP only, Day2=$1 ... locks at $10. Miss window without claim → reset to Day 1.
+// Gift unlocks only after ALL daily tasks are completed.
+const dailyStreak={
+  day:1,
+  claimedToday:false,
+  tasksTodayTotal:5,
+  tasksTodayDone:0,
+  endsAt: Date.now() + 24*60*60*1000,
+  expired:false
+};
+function streakRewardForDay(day){
+  if(day<=1) return {type:'xp', label:'XP only', amount:0};
+  const usd=Math.min(day-1, 10);
+  return {type:'usd', label:'$'+usd, amount:usd};
+}
+function dailyRemainMs(){ return Math.max(0, dailyStreak.endsAt - Date.now()); }
+function formatHMS(ms){
+  const s=Math.floor(ms/1000);
+  const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=s%60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+/** Color by remaining time in 24h window */
+function dailyTimerColor(ms){
+  const h=ms/3600000;
+  if(ms<=0) return 'text-white/40';
+  if(h>18) return 'text-emerald-400';   // green — plenty of time
+  if(h>12) return 'text-sky-400';       // blue
+  if(h>6)  return 'text-yellow-400';    // yellow
+  if(h>2)  return 'text-orange-400';    // orange
+  return 'text-red-500';               // red — final hours
+}
+function tickDailyGift(){
+  const ms=dailyRemainMs();
+  if(ms<=0 && !dailyStreak.claimedToday && !dailyStreak.expired){
+    dailyStreak.expired=true;
+    dailyStreak.day=1;
+    dailyStreak.claimedToday=false;
+    dailyStreak.tasksTodayDone=0;
+    dailyStreak.endsAt=Date.now()+24*60*60*1000;
+    dailyStreak.expired=false;
+    toast('Daily window ended without claim · reset to Day 1 (XP)');
+    renderShop();
+    syncStreakLabels();
+  }
+  const el=document.getElementById('dailyTimerEl');
+  if(el){
+    el.textContent=formatHMS(dailyRemainMs());
+    el.className='font-mono text-lg font-bold '+dailyTimerColor(dailyRemainMs());
+  }
+  syncStreakLabels();
+}
+function syncStreakLabels(){
+  const r=streakRewardForDay(dailyStreak.day);
+  const dayEl=document.getElementById('streakDayLabel');
+  const rewEl=document.getElementById('streakRewardLabel');
+  if(dayEl) dayEl.textContent=`Day ${dailyStreak.day} · Streak ×${dailyStreak.day}`;
+  if(rewEl) rewEl.textContent=r.label;
+}
+function onDailyTaskProgress(){
+  // call when a daily task is completed
+  if(dailyStreak.tasksTodayDone<dailyStreak.tasksTodayTotal){
+    dailyStreak.tasksTodayDone++;
+    renderShop();
+    if(dailyStreak.tasksTodayDone>=dailyStreak.tasksTodayTotal){
+      toast('All daily tasks done · Daily Gift unlocked');
+    }
+  }
+}
+// SHOP
+const shopItems=[
+  {id:1,icon:'G',title:'Daily Gift',desc:'',cost:'FREE',action:'claim',claimed:false,infoKey:'dailyGift'},
+  {id:2,icon:'T',title:'Time Extension',desc:'Extend season deadline +7 days',cost:'50 GEN',action:'buy',infoKey:'timeext'},
+  {id:3,icon:'S',title:'Season 01 Access',desc:'Unlock Season 01 tasks',cost:'$3',action:'season',infoKey:'season'},
+  {id:4,icon:'R',title:'Account Recharge',desc:'Choose a package & pay USDC via TON Keeper',cost:'USDC',action:'recharge',infoKey:'recharge'},
+  {id:5,icon:'P',title:'Premium Task',desc:'Extra high-reward daily task slot',cost:'100 GEN',action:'buy',infoKey:'premiumTask'},
+  {id:6,icon:'B',title:'Premium Badge',desc:'Gold badge on profile',cost:'150 GEN',action:'buy',infoKey:'premiumBadge'},
+  {id:7,icon:'N',title:'Change Display Name',desc:'Update public display name',cost:'40 GEN',action:'buy',infoKey:'changeName'},
+  {id:8,icon:'A',title:'Change Avatar',desc:'Set a new avatar image',cost:'60 GEN',action:'buy',infoKey:'changeAvatar'},
+  {id:9,icon:'U',title:'Change Username',desc:'Unique @username (limited)',cost:'80 GEN',action:'buy',infoKey:'changeUser'},
+];
+function renderShop(){
+  syncStreakLabels();
+  const r=streakRewardForDay(dailyStreak.day);
+  const allDone=dailyStreak.tasksTodayDone>=dailyStreak.tasksTodayTotal;
+  const ms=dailyRemainMs();
+  const tColor=dailyTimerColor(ms);
+  document.getElementById('shopGrid').innerHTML=shopItems.map(s=>{
+    if(s.action==='claim'){
+      const claimed=dailyStreak.claimedToday;
+      const canClaim=allDone && !claimed && ms>0;
+      let lockReason='';
+      if(!allDone) lockReason=`Complete all tasks first (${dailyStreak.tasksTodayDone}/${dailyStreak.tasksTodayTotal})`;
+      else if(claimed) lockReason='Claimed — come back next window';
+      else if(ms<=0) lockReason='Window ended';
+      const btn=claimed
+        ? `<button type="button" disabled class="text-xs px-3 py-1.5 rounded-lg bg-white/10 text-white/40 font-semibold">CLAIMED</button>`
+        : canClaim
+          ? `<button type="button" onclick="claimDailyGift()" class="text-xs px-3 py-1.5 rounded-lg bg-pink-500 text-white font-semibold">CLAIM ${r.label}</button>`
+          : `<button type="button" disabled class="text-xs px-3 py-1.5 rounded-lg bg-white/10 text-white/40 font-semibold">LOCKED</button>`;
+      return`<div class="card p-4 flex flex-col border border-pink-500/30 sm:col-span-2">
+        <div class="flex items-start justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <div class="w-10 h-10 rounded-xl bg-pink-500/20 text-pink-400 flex items-center justify-center font-bold">G</div>
+            <div>
+              <div class="font-bold text-sm">Daily Gift <span class="text-pink-400">×${dailyStreak.day}</span></div>
+              <div class="text-[10px] text-white/40">24h claim window · miss = back to Day 1</div>
+            </div>
+          </div>
+          <button type="button" class="info-btn" onclick="showInfo('dailyGift')">i</button>
+        </div>
+        <div class="text-center my-3 py-3 rounded-xl bg-black/30">
+          <div class="text-[10px] text-white/40 mb-1">TIME LEFT</div>
+          <div id="dailyTimerEl" class="font-mono text-lg font-bold ${tColor}">${formatHMS(ms)}</div>
+          <div class="text-[10px] text-white/30 mt-1">Green → Blue → Yellow → Orange → Red</div>
+        </div>
+        <div class="text-[11px] text-white/50 mb-2">Streak Day ${dailyStreak.day} · Reward: <b class="text-pink-400">${r.label}</b> · Tasks ${dailyStreak.tasksTodayDone}/${dailyStreak.tasksTodayTotal}</div>
+        ${lockReason?`<div class="text-[11px] text-amber-400/90 mb-2">${lockReason}</div>`:''}
+        <div class="flex justify-between items-center">
+          <span class="text-pink-400 text-xs font-bold">${r.label} · RESERVE</span>
+          ${btn}
+        </div>
+        <button type="button" onclick="demoFinishAllTasks()" class="mt-2 text-[10px] text-cyan-400/80 underline">Demo: mark all daily tasks done</button>
+      </div>`;
+    }
+    let btnLabel='BUY';
+    if(s.action==='season') btnLabel='VIEW';
+    if(s.action==='recharge') btnLabel='SELECT PACKAGE';
+    const btn=`<button type="button" onclick="shopBuy(${s.id})" class="text-xs px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-400 font-semibold">${btnLabel}</button>`;
+    return`<div class="card p-4 flex flex-col">
+      <div class="flex items-start justify-between mb-2">
+        <div class="w-10 h-10 rounded-xl bg-cyan-500/15 text-cyan-400 flex items-center justify-center font-bold">${s.icon}</div>
+        <button type="button" class="info-btn" title="Info" onclick="${s.infoKey?`showInfo('${s.infoKey}')`:`toast('${s.title}')`}">i</button>
+      </div>
+      <div class="font-bold text-sm mb-0.5">${s.title}</div>
+      <div class="text-[11px] text-white/40 mb-3 flex-1">${s.desc}</div>
+      <div class="flex justify-between items-center">
+        <span class="text-cyan-400 text-xs font-bold">${s.cost}</span>
+        ${btn}
+      </div>
+    </div>`;
+  }).join('');
+}
+function claimDailyGift(){
+  if(dailyStreak.claimedToday){toast('Already claimed today','err');return}
+  if(dailyRemainMs()<=0){toast('Window ended · reset to Day 1','err');return}
+  if(dailyStreak.tasksTodayDone<dailyStreak.tasksTodayTotal){
+    toast(`Finish all tasks first (${dailyStreak.tasksTodayDone}/${dailyStreak.tasksTodayTotal})`,'err');
+    return;
+  }
+  const r=streakRewardForDay(dailyStreak.day);
+  dailyStreak.claimedToday=true;
+  if(r.type==='usd') toast(`Daily Gift claimed: $${r.amount} from RESERVE (demo)`);
+  else toast('Daily Gift claimed: XP only (Day 1)');
+  // After claim, next window advances streak (demo: advance day + new 24h)
+  const nextDay=Math.min(dailyStreak.day+1, 11);
+  setTimeout(()=>{
+    dailyStreak.day=nextDay;
+    dailyStreak.claimedToday=false;
+    dailyStreak.tasksTodayDone=0;
+    dailyStreak.endsAt=Date.now()+24*60*60*1000;
+    renderShop();
+    syncStreakLabels();
+    toast(`Next window · Day ${dailyStreak.day} · complete tasks again`);
+  },1500);
+  renderShop();
+  syncStreakLabels();
+}
+function demoFinishAllTasks(){
+  dailyStreak.tasksTodayDone=dailyStreak.tasksTodayTotal;
+  toast('All daily tasks marked done · Daily Gift unlocked');
+  renderShop();
+}
+function shopBuy(id){
+  const s=shopItems.find(x=>x.id===id); if(!s)return;
+  if(s.action==='season'){showPage('seasons');return}
+  if(s.action==='recharge'){openPackagePicker('recharge');return}
+  if(id===5||id===6){toast(s.title+' · '+s.desc);return}
+  if(id===7){openModal('profileModal');toast('40 GEN charged (demo)');return}
+  if(id===8||id===9){openModal('profileModal');toast('Token payment (demo)');return}
+  toast('Demo purchase');
+}
+// Season close → 15 min verify → RESERVE payout
+const seasonState={pct:58, done:29, total:50, closing:false, closed:false};
+function seasonFinalAmount(pct){
+  if(pct>=100) return 30;
+  if(pct>=80) return 20;
+  if(pct>=50) return 10;
+  return 0;
+}
+function closeSeason1(){
+  if(seasonState.closed){toast('Season 01 already closed');return}
+  if(seasonState.pct<50){toast('Need at least 50% to close for payout','err');return}
+  const amt=seasonFinalAmount(seasonState.pct);
+  seasonState.closing=true;
+  document.getElementById('modalRoot').innerHTML=`<div class="fixed inset-0 z-[200] modal-bg flex items-end sm:items-center justify-center p-4">
+    <div class="w-full max-w-sm card p-6 rounded-2xl text-center">
+      <div class="font-bold text-lg mb-2">Close Season 01</div>
+      <div class="text-sm text-white/50 mb-3">Completion ${seasonState.pct}% · Final tier <b class="text-emerald-400">$${amt}</b></div>
+      <div class="text-[11px] text-white/40 mb-4">Submitted for server verification (15 min) · Paid from RESERVE pool · Then Season 02 unlocks</div>
+      <button type="button" onclick="confirmCloseSeason(${amt})" class="btn w-full py-3 rounded-xl bg-amber-500 text-black font-bold text-sm mb-2">Confirm close</button>
+      <button type="button" onclick="document.getElementById('modalRoot').innerHTML=''" class="btn w-full py-2 text-white/40 text-sm">Cancel</button>
+    </div></div>`;
+}
+function confirmCloseSeason(amt){
+  document.getElementById('modalRoot').innerHTML='';
+  toast('Season close pending verification 15:00…');
+  let left=15;
+  const s1=document.getElementById('season1Status');
+  if(s1){s1.textContent='VERIFYING';s1.className='badge badge-warn'}
+  const t=setInterval(()=>{
+    left--;
+    if(left<=0){
+      clearInterval(t);
+      seasonState.closed=true; seasonState.closing=false;
+      if(s1){s1.textContent='CLOSED';s1.className='badge badge-ok'}
+      const b=document.getElementById('s2badge'); if(b){b.textContent='UNLOCKED';b.className='badge badge-ok'}
+      toast(amt>0?`Season 01 paid $${amt} from RESERVE · Season 02 unlocked`:'Season closed · no final payout');
+    }
+  },1000);
+}
+function openPackagePicker(source){
+  const list=packages.map(p=>{
+    const pay=pkgPay(p);
+    const launch=isLaunchActive();
+    return`<button type="button" onclick="startTonPayment(${p.id})" class="btn w-full text-start p-3 rounded-xl glass border border-white/10 mb-2">
+      <div class="flex justify-between items-center">
+        <div>
+          <div class="font-bold text-sm">${p.name}</div>
+          <div class="text-[11px] text-white/40">${p.perk}</div>
+        </div>
+        <div class="text-end">
+          <div>${launch?`<span class="price-old">$${p.listPrice}</span>`:''}<span class="text-emerald-400 font-bold">$${pay}</span></div>
+          <div class="text-[10px] text-cyan-400">${p.tokens+p.bonus} GEN · Cap $${p.maxCap}</div>
+        </div>
+      </div>
+    </button>`;
+  }).join('');
+  document.getElementById('modalRoot').innerHTML=`<div class="fixed inset-0 z-[200] modal-bg flex items-end sm:items-center justify-center p-4" onclick="if(event.target===this)document.getElementById('modalRoot').innerHTML=''">
+    <div class="w-full max-w-md card p-5 rounded-2xl max-h-[85vh] overflow-y-auto">
+      <h3 class="font-bold text-lg mb-1">Select package</h3>
+      <p class="text-[11px] text-white/40 mb-3">${isLaunchActive()?'Launch 50% OFF · ':''}Pay USDC via TON Keeper · Max Cap = 7×</p>
+      ${list}
+      <button type="button" onclick="document.getElementById('modalRoot').innerHTML=''" class="btn w-full py-2 text-white/40 text-sm mt-1">Cancel</button>
+    </div></div>`;
+}
+function startTonPayment(pkgId){
+  const p=packages.find(x=>x.id===pkgId); if(!p)return;
+  if(!state.walletConnected){toast(currentLang==='fa'?'اول کیف پول را وصل کنید':'Connect wallet first','err');return}
+  const pay=pkgPay(p);
+  document.getElementById('modalRoot').innerHTML=`<div class="fixed inset-0 z-[200] modal-bg flex items-end sm:items-center justify-center p-4">
+    <div class="w-full max-w-sm card p-6 rounded-2xl text-center">
+      <div class="text-sm text-white/40 mb-1">TON Keeper · USDC</div>
+      <div class="text-2xl font-extrabold text-emerald-400 mb-2">$${pay}</div>
+      <div class="text-xs text-white/50 mb-4">${p.name}<br>${p.tokens} GEN${p.bonus?' + '+p.bonus+' bonus':''}<br>Max Cap $${p.maxCap}</div>
+      <div class="card p-3 mb-4 text-[11px] text-white/40 font-mono break-all">ton://transfer/UQDemo...Pay?amount=${pay}USDC</div>
+      <button type="button" onclick="confirmTonPay(${p.id})" class="btn w-full py-3 rounded-xl bg-cyan-500 text-black font-bold text-sm mb-2">Open TON Keeper (demo)</button>
+      <button type="button" onclick="document.getElementById('modalRoot').innerHTML=''" class="btn w-full py-2 text-white/40 text-sm">Cancel</button>
+    </div></div>`;
+}
+function confirmTonPay(pkgId){
+  document.getElementById('modalRoot').innerHTML='';
+  buyPackageById(pkgId);
+}
+
+// PACKAGES — user never sees owner fee
+// listPrice: 11,33,110,330,1100 | launch pay: 9,18,60,180,600
+// economic: 10,30,100,300,1000 | owner (internal): 1,3,10,30,100 — NEVER discounted
+// maxCap = 7 × economic
+const packages=[
+  {id:1,name:'Bronze',nameFa:'برنز',nameAr:'برونز',listPrice:11,payPrice:9,economic:10,owner:1,tokens:100,bonus:0,maxCap:70,
+    options:['Launch pay $9 ($6 pack + $3 Season 01)','Season 01 included','100 GEN tokens','Max Cap $70 (7× $10)','Daily tasks from 12:00','Binary team seat'],
+    optionsFa:['پرداخت افتتاحیه ۹$ (۶$ پکیج + ۳$ فصل۱)','فصل ۱ داخل باندل','۱۰۰ توکن GEN','سقف پاداش ۷۰$','تسک روزانه از ۱۲:۰۰','جایگاه باینری'],
+    optionsAr:['دفع الإطلاق ٩$','الموسم ١ مشمول','١٠٠ GEN','حد أقصى ٧٠$','مهام يومية','مقعد ثنائي']},
+  {id:2,name:'Silver',nameFa:'نقره',nameAr:'فضي',listPrice:33,payPrice:18,economic:30,owner:3,tokens:300,bonus:10,maxCap:210,
+    options:['Launch pay $18 (50% off $33)','Season 01 FREE','300 GEN + 10 bonus','Max Cap $210','Slightly higher team volume weight','Daily tasks + more earning room'],
+    optionsFa:['پرداخت ۱۸$ (۵۰٪ آف از ۳۳$)','فصل ۱ رایگان','۳۰۰ GEN + ۱۰ بونوس','سقف ۲۱۰$','وزن حجم تیمی کمی بالاتر','فضای کسب بیشتر'],
+    optionsAr:['دفع ١٨$','الموسم ١ مجانًا','٣٠٠+١٠ GEN','حد ٢١٠$','وزن فريق أعلى قليلًا','مساحة ربح أكبر']},
+  {id:3,name:'Gold',nameFa:'طلا',nameAr:'ذهبي',listPrice:110,payPrice:60,economic:100,owner:10,tokens:1000,bonus:30,maxCap:700,
+    options:['Launch pay $60 (50% off $110)','Season 01 FREE','1,000 GEN + 30 bonus','Max Cap $700','Priority in task verification queue','1 Premium Task slot per week'],
+    optionsFa:['پرداخت ۶۰$','فصل ۱ رایگان','۱۰۰۰+۳۰ GEN','سقف ۷۰۰$','اولویت در صف تأیید تسک','۱ تسک پرمیوم در هفته'],
+    optionsAr:['دفع ٦٠$','الموسم ١ مجانًا','١٠٠٠+٣٠ GEN','حد ٧٠٠$','أولوية التحقق','مهمة مميزة أسبوعيًا']},
+  {id:4,name:'Platinum',nameFa:'پلاتین',nameAr:'بلاتيني',listPrice:330,payPrice:180,economic:300,owner:30,tokens:3000,bonus:100,maxCap:2100,
+    options:['Launch pay $180 (50% off $330)','Season 01 FREE','3,000 GEN + 100 bonus','Max Cap $2,100','Premium Task available daily','Profile Platinum badge','Higher binary matching weight'],
+    optionsFa:['پرداخت ۱۸۰$','فصل ۱ رایگان','۳۰۰۰+۱۰۰ GEN','سقف ۲۱۰۰$','تسک پرمیوم روزانه','بج پلاتین پروفایل','وزن باینری بالاتر'],
+    optionsAr:['دفع ١٨٠$','الموسم ١ مجانًا','٣٠٠٠+١٠٠ GEN','حد ٢١٠٠$','مهمة مميزة يوميًا','شارة بلاتين','وزن ثنائي أعلى']},
+  {id:5,name:'Diamond',nameFa:'الماس',nameAr:'ماسي',listPrice:1100,payPrice:600,economic:1000,owner:100,tokens:10000,bonus:400,maxCap:7000,
+    options:['Launch pay $600 (50% off $1,100)','Season 01 FREE','10,000 GEN + 400 bonus','Max Cap $7,000 (highest capacity)','VIP task lane (faster access to high-reward tasks)','Diamond profile badge','Highest binary team leverage','Best room for long-term commissions before flush-out'],
+    optionsFa:['پرداخت ۶۰۰$','فصل ۱ رایگان','۱۰۰۰۰+۴۰۰ GEN','سقف ۷۰۰۰$ (بالاترین ظرفیت)','لاین VIP تسک (دسترسی سریع‌تر به تسک‌های پرپاداش)','بج الماس','بیشترین اهرم تیمی باینری','بیشترین فضای پورسانت قبل از فلش‌اوت'],
+    optionsAr:['دفع ٦٠٠$','الموسم ١ مجانًا','١٠٠٠٠+٤٠٠ GEN','حد ٧٠٠٠$','مسار VIP للمهام','شارة ماسية','أعلى رافعة ثنائية','أكبر مساحة عمولات']},
+];
+
+// Launch promo state (admin controllable)
+const launchState={
+  active:true,
+  endsAt: Date.now() + 30*24*60*60*1000, // 30 days demo
+  vipLaneAfterEnd:true
+};
+function isLaunchActive(){ return launchState.active && Date.now() < launchState.endsAt; }
+function formatLaunchRemain(){
+  if(!launchState.active) return 'OFF';
+  let ms=launchState.endsAt - Date.now();
+  if(ms<=0) return '00:00:00:00';
+  const d=Math.floor(ms/86400000); ms%=86400000;
+  const h=Math.floor(ms/3600000); ms%=3600000;
+  const m=Math.floor(ms/60000); ms%=60000;
+  const s=Math.floor(ms/1000);
+  return `${String(d).padStart(2,'0')}:${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+function tickLaunchTimers(){
+  const t=formatLaunchRemain();
+  const on=isLaunchActive();
+  ['launchTimerOnboard','launchTimerPkg','launchTimerDash'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.textContent=on?t:(launchState.active?'ENDED':'OFF');
+  });
+  ['launchBadgeOnboard','launchBadgePkg'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.textContent=on?'LAUNCH · 50% OFF':(launchState.vipLaneAfterEnd?'VIP TASK LANE':'STANDARD');
+  });
+}
+function pkgPay(p){ return isLaunchActive()?p.payPrice:p.listPrice; }
+function pkgLabel(p){
+  if(currentLang==='fa') return p.nameFa||p.name;
+  if(currentLang==='ar') return p.nameAr||p.name;
+  return p.name;
+}
+function pkgOptions(p){
+  if(currentLang==='fa') return p.optionsFa||p.options;
+  if(currentLang==='ar') return p.optionsAr||p.options;
+  return p.options;
+}
+function packageCardHtml(p){
+  const pay=pkgPay(p);
+  const launch=isLaunchActive();
+  const label=pkgLabel(p);
+  const opts=(pkgOptions(p)||[]).map(o=>`<li class="text-[11px] text-white/50">· ${o}</li>`).join('');
+  const selected=state.selectedPackageId===p.id;
+  return`<div class="card p-4 ${selected?'border border-cyan-400':''}">
+    <div class="flex justify-between items-start mb-2">
+      <div>
+        <div class="font-bold text-base">${label}</div>
+        <div class="mt-1">${launch?`<span class="price-old">$${p.listPrice}</span>`:''}<span class="text-emerald-400 font-extrabold text-lg">$${pay}</span>
+        ${launch?`<span class="launch-badge ms-2">50% OFF</span>`:''}</div>
+      </div>
+      <span class="badge badge-ok">Cap $${p.maxCap.toLocaleString()}</span>
+    </div>
+    <ul class="mb-3 space-y-0.5">${opts}</ul>
+    <div class="text-sm text-cyan-400 font-bold mb-3">${p.tokens.toLocaleString()} GEN${p.bonus?` + ${p.bonus} bonus`:''}</div>
+    <button type="button" onclick="selectPackage(${p.id})" class="btn w-full py-2.5 rounded-xl ${selected?'bg-cyan-500 text-black':'bg-cyan-500/20 text-cyan-400'} font-bold text-sm">${selected?'SELECTED':'Select package'}</button>
+    ${selected?`<button type="button" onclick="paySelectedPackage()" class="btn w-full py-2.5 mt-2 rounded-xl bg-emerald-500 text-black font-bold text-sm">Pay $${pay} USDC</button>`:''}
+  </div>`;
+}
+function selectPackage(id){
+  state.selectedPackageId=id;
+  const p=packages.find(x=>x.id===id);
+  const lab=document.getElementById('selectedPkgLabel');
+  const payBtn=document.getElementById('btnPaySelected');
+  if(p&&lab){
+    lab.classList.remove('hidden');
+    lab.textContent=`Selected: ${pkgLabel(p)} · $${pkgPay(p)} USDC · Cap $${p.maxCap}`;
+  }
+  if(payBtn){
+    payBtn.disabled=false;
+    payBtn.classList.remove('opacity-50');
+    payBtn.textContent=p?`Pay $${pkgPay(p)} USDC`:'Pay selected (USDC)';
+  }
+  renderPackages();
+  updateEnterBtn();
+  toast(`${pkgLabel(p)} selected`);
+}
+function paySelectedPackage(){
+  if(!state.selectedPackageId){toast('Select a package first','err');return}
+  if(!state.walletConnected){toast('Connect wallet first','err');return}
+  startTonPayment(state.selectedPackageId);
+}
+function renderPackages(){
+  const el=document.getElementById('packageList');
+  if(el) el.innerHTML=packages.map(p=>packageCardHtml(p)).join('');
+  const ob=document.getElementById('onboardPackages');
+  if(ob) ob.innerHTML=packages.map(p=>{
+    const pay=pkgPay(p);
+    const launch=isLaunchActive();
+    const label=pkgLabel(p);
+    const selected=state.selectedPackageId===p.id;
+    const opts=(pkgOptions(p)||[]).slice(0,3).map(o=>`<div class="text-[10px] text-white/40">· ${o}</div>`).join('');
+    return`<button type="button" onclick="selectPackage(${p.id})" class="btn w-full text-start p-3 rounded-xl glass border ${selected?'border-cyan-400 bg-cyan-500/10':'border-white/10'}">
+      <div class="flex justify-between gap-2">
+        <div class="min-w-0">
+          <div class="font-bold text-sm">${label}${selected?' · SELECTED':''}</div>
+          ${opts}
+        </div>
+        <div class="text-end shrink-0">
+          <div>${launch?`<span class="price-old">$${p.listPrice}</span>`:''}<span class="text-emerald-400 font-bold">$${pay}</span></div>
+          <div class="text-[10px] text-cyan-400">${(p.tokens+p.bonus).toLocaleString()} GEN</div>
+          <div class="text-[10px] text-white/40">Cap $${p.maxCap.toLocaleString()}</div>
+        </div>
+      </div>
+    </button>`;
+  }).join('');
+  tickLaunchTimers();
+}
+function buyPackageById(pkgId){
+  const p=packages.find(x=>x.id===pkgId); if(!p)return;
+  if(!state.walletConnected){toast('Connect wallet first','err');return}
+  state.packageBought=true;
+  state.seasonActive=true;
+  state.selectedPackageId=pkgId;
+  state.genBalance += (p.tokens + p.bonus);
+  const genEl=document.getElementById('genBal'); if(genEl) genEl.textContent=state.genBalance.toLocaleString();
+  const s1=document.getElementById('season1Status'); if(s1) s1.textContent='ACTIVE';
+  updateEnterBtn();
+  toast(`${pkgLabel(p)} · +${p.tokens+p.bonus} GEN · Cap $${p.maxCap} (demo)`);
+}
+function openTermsModal(){
+  document.getElementById('modalRoot').innerHTML=`
+  <div class="fixed inset-0 z-[220] bg-[#0a0e14] flex flex-col" id="termsSheet">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">
+      <button type="button" onclick="document.getElementById('modalRoot').innerHTML=''" class="text-white/50 text-sm px-2">Close</button>
+      <div class="font-bold text-sm tracking-wide">Terms of Use</div>
+      <div class="w-12"></div>
+    </div>
+    <div class="flex-1 overflow-y-auto px-5 py-5" style="max-width:520px;margin:0 auto;width:100%">
+      <div class="text-center mb-6">
+        <div class="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-br from-cyan-400 to-purple-500 flex items-center justify-center text-black font-extrabold text-lg mb-3">G</div>
+        <h2 class="text-xl font-bold">Agree to GENYX Terms</h2>
+        <p class="text-[12px] text-white/45 mt-2 leading-relaxed">Please review the Terms of Use and Community Guidelines. By continuing you confirm that you understand how GENYX works.</p>
+      </div>
+
+      <section class="mb-5">
+        <h3 class="text-[13px] font-bold text-white mb-2">1. Account & identity</h3>
+        <p class="text-[12px] text-white/55 leading-relaxed">You must use a single account. Multi-accounting, shared wallets for abuse, or impersonation is not allowed. Your Structural ID is permanent for your seat.</p>
+      </section>
+      <section class="mb-5">
+        <h3 class="text-[13px] font-bold text-white mb-2">2. Tasks & verification</h3>
+        <p class="text-[12px] text-white/55 leading-relaxed">Task completion is verified by GENYX servers. Evidence may be reviewed for up to 15 minutes. Fake evidence, bots, or manipulated activity can result in restricted rewards.</p>
+      </section>
+      <section class="mb-5">
+        <h3 class="text-[13px] font-bold text-white mb-2">3. Packages, Max Cap & rewards</h3>
+        <p class="text-[12px] text-white/55 leading-relaxed">Packages unlock earning capacity. Max Cap is 7× the package economic value. When Max Cap is reached, new commissions pause until capacity expands. Your account, referral links, and binary position remain.</p>
+      </section>
+      <section class="mb-5">
+        <h3 class="text-[13px] font-bold text-white mb-2">4. Withdrawals</h3>
+        <p class="text-[12px] text-white/55 leading-relaxed">Minimum withdrawal is $3 USDC. A 1.5% fee applies. Maximum two withdrawal requests per day. Processing depends on network and compliance checks.</p>
+      </section>
+      <section class="mb-5">
+        <h3 class="text-[13px] font-bold text-white mb-2">5. Referrals</h3>
+        <p class="text-[12px] text-white/55 leading-relaxed">If someone joins with your link and does not complete a qualifying payment within 15 minutes, their temporary seat is released.</p>
+      </section>
+      <section class="mb-5">
+        <h3 class="text-[13px] font-bold text-white mb-2">6. Community rules</h3>
+        <p class="text-[12px] text-white/55 leading-relaxed">No spam, harassment, fraud, or abuse of bugs. Violations may lead to warnings, temporary restriction, or position review according to GENYX policy.</p>
+      </section>
+      <section class="mb-8">
+        <h3 class="text-[13px] font-bold text-white mb-2">7. Demo notice</h3>
+        <p class="text-[12px] text-white/55 leading-relaxed">This preview is a demonstration. Balances and payments are simulated and are not real funds or investment guarantees.</p>
+      </section>
+    </div>
+    <div class="shrink-0 border-t border-white/10 px-4 py-4 bg-[#0a0e14]" style="padding-bottom:max(16px,env(safe-area-inset-bottom))">
+      <div class="max-w-md mx-auto space-y-2">
+        <button type="button" onclick="acceptTermsAndClose()" class="btn w-full py-3.5 rounded-xl bg-cyan-500 text-black font-extrabold text-sm">I Agree</button>
+        <button type="button" onclick="document.getElementById('modalRoot').innerHTML=''" class="btn w-full py-2.5 rounded-xl text-white/45 text-sm">Not now</button>
+      </div>
+    </div>
+  </div>`;
+}
+function acceptTermsAndClose(){
+  const c=document.getElementById('termsCheck');
+  if(c) c.checked=true;
+  state.termsAccepted=true;
+  document.getElementById('modalRoot').innerHTML='';
+  updateEnterBtn();
+  toast('Terms accepted');
+}
+
+// TREE — all IDs blue; expand on click; profile via info button
+const treeData={
+  id:'GX-7F3A91C2', name:'You', level:18, package:'Growth', children:[
+    {id:'GX-A1B2C3D4', name:'Nova', level:12, package:'Builder', children:[
+      {id:'GX-E5F6G7H8', name:'Kai', level:3, package:'Starter', children:[]},
+      {id:'GX-I9J0K1L2', name:'Mia', level:8, package:'Builder', children:[
+        {id:'GX-Z9Y8X7W6', name:'Leo', level:2, package:'Starter', children:[]}
+      ]}
+    ]},
+    {id:'GX-M3N4O5P6', name:'Rex', level:9, package:'Builder', children:[
+      {id:'GX-Q7R8S9T0', name:'Sky', level:1, package:'—', children:[]},
+      {id:'GX-U1V2W3X4', name:'Ash', level:4, package:'Starter', children:[]}
+    ]}
+  ]
+};
+const treeOpen=new Set(['GX-7F3A91C2']);
+function renderTree(){
+  function node(n, depth){
+    const open=treeOpen.has(n.id);
+    const hasKids=n.children&&n.children.length;
+    let html=`<div class="tree-node" style="margin-inline-start:${depth*8}px">
+      <span class="inline-flex items-center gap-1.5">
+        <span class="id-blue" onclick="toggleTreeNode('${n.id}')">${hasKids?(open?'▼':'▶'):'·'} ${n.id}</span>
+        <button type="button" class="info-btn" title="Profile" onclick="showMemberInfo('${n.id}')">i</button>
+      </span>
+    </div>`;
+    if(open && hasKids){
+      html+=n.children.map(c=>node(c, depth+1)).join('');
+    }
+    return html;
+  }
+  const el=document.getElementById('treeRoot');
+  if(el) el.innerHTML=node(treeData,0);
+}
+function toggleTreeNode(id){
+  if(treeOpen.has(id)) treeOpen.delete(id); else treeOpen.add(id);
+  renderTree();
+}
+function findNode(n,id){
+  if(n.id===id) return n;
+  for(const c of (n.children||[])){const f=findNode(c,id); if(f) return f}
+  return null;
+}
+function showMemberInfo(id){
+  const n=findNode(treeData,id); if(!n)return;
+  document.getElementById('modalRoot').innerHTML=`<div class="fixed inset-0 z-[200] modal-bg flex items-end sm:items-center justify-center p-4" onclick="if(event.target===this)document.getElementById('modalRoot').innerHTML=''">
+    <div class="w-full max-w-sm card p-5 rounded-2xl">
+      <div class="font-mono text-cyan-400 font-bold mb-2">${n.id}</div>
+      <div class="space-y-2 text-sm">
+        <div class="flex justify-between"><span class="text-white/40">Name</span><span>${n.name||'—'}</span></div>
+        <div class="flex justify-between"><span class="text-white/40">Level</span><span>${n.level??'—'}</span></div>
+        <div class="flex justify-between"><span class="text-white/40">Package</span><span>${n.package||'—'}</span></div>
+        <div class="flex justify-between"><span class="text-white/40">Downline</span><span>${(n.children||[]).length}</span></div>
+      </div>
+      <p class="text-[10px] text-white/30 mt-3">Only public profile fields · No wallet or private data</p>
+      <button type="button" onclick="document.getElementById('modalRoot').innerHTML=''" class="btn w-full py-2.5 rounded-xl bg-cyan-500 text-black font-bold text-sm mt-3">Close</button>
+    </div></div>`;
+}
+
+// AUCTIONS v3.1 — countdown ONLY decreases when a bid is placed (−1s per bid)
+// Timer color is FIXED (cyan). Daily Gift keeps the green→red color ramp.
+// Prize pool displayed per hall (from RESERVE / GEN treasury).
+const auctionHalls=[
+  {id:'C1',series:'C',cost:1,seconds:30,status:'LIVE',yourBids:0,lastBid:null,winner:null,
+    prizeLabel:'$5 USDC + 50 GEN', prizeNote:'Entry hall · small RESERVE pot'},
+  {id:'B1',series:'B',cost:2,seconds:40,status:'LIVE',yourBids:0,lastBid:null,winner:null,
+    prizeLabel:'$25 USDC + 200 GEN', prizeNote:'Mid hall · balanced pot'},
+  {id:'A1',series:'A',cost:3,seconds:50,status:'LIVE',yourBids:0,lastBid:null,winner:null,
+    prizeLabel:'$100 USDC + 1,000 GEN + Premium Badge', prizeNote:'Premium hall · top RESERVE pot'},
+];
+const auctionReports=[];
+function formatSec(s){
+  const m=Math.floor(s/60), ss=s%60;
+  return `${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+}
+function renderAuctions(){
+  const bal=document.getElementById('auctionGenBal');
+  if(bal) bal.textContent=state.genBalance.toLocaleString();
+  const el=document.getElementById('auctionHalls');
+  if(!el) return;
+  el.innerHTML=auctionHalls.map((h,idx)=>{
+    const live=h.status==='LIVE'&&h.seconds>0;
+    const ended=h.status==='ENDED'||h.seconds<=0;
+    return`<div class="card p-4 ${ended?'opacity-80':''}">
+      <div class="flex justify-between mb-2">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="w-2 h-2 rounded-full ${live?'bg-red-500 animate-pulse':'bg-white/30'}"></span>
+          <span class="text-xs font-semibold ${live?'text-red-400':'text-white/40'}">${live?'LIVE':'ENDED'}</span>
+          <span class="font-bold text-sm text-cyan-400">${h.id}</span>
+          <span class="text-[10px] text-white/40">Series ${h.series} · ${h.cost} GEN/bid · −1s only on bid</span>
+        </div>
+      </div>
+      <div class="mb-3 p-3 rounded-xl bg-gradient-to-r from-amber-500/15 to-pink-500/10 border border-amber-400/20">
+        <div class="text-[10px] text-amber-400/80 uppercase tracking-wide">Hall prize</div>
+        <div class="text-base font-extrabold text-amber-300">${h.prizeLabel}</div>
+        <div class="text-[10px] text-white/40 mt-0.5">${h.prizeNote}</div>
+      </div>
+      <div class="text-center mb-3 py-3 rounded-xl bg-black/30">
+        <div class="text-xs text-white/40 mb-1">BID COUNTDOWN</div>
+        <div class="text-3xl font-mono font-bold text-cyan-400" id="ah-time-${idx}">${formatSec(Math.max(0,h.seconds))}</div>
+        <div class="text-[10px] text-white/30 mt-1">Does not tick alone · each registered bid −1s</div>
+      </div>
+      <div class="grid grid-cols-2 gap-2 text-center text-xs mb-3">
+        <div class="glass rounded-lg p-2"><div class="font-bold">${h.yourBids}</div><div class="text-white/40">Your bids</div></div>
+        <div class="glass rounded-lg p-2"><div class="font-bold text-[11px]">${h.winner||'—'}</div><div class="text-white/40">Winner ID</div></div>
+      </div>
+      ${live?`<div class="flex gap-2">
+        <input id="ah-bid-${idx}" type="number" step="0.01" min="0.01" placeholder="Bid amount $" class="flex-1 text-sm">
+        <button type="button" onclick="placeAuctionBid(${idx})" class="btn px-4 py-2.5 rounded-xl bg-white text-black font-bold text-xs shrink-0">ENTER · ${h.cost} GEN</button>
+      </div>`:`<div class="text-center text-xs text-emerald-400">Settled · Winner ${h.winner||'—'} · ${h.prizeLabel}</div>`}
+    </div>`;
+  }).join('');
+  const rep=document.getElementById('auctionReports');
+  if(rep){
+    rep.innerHTML=auctionReports.length
+      ? auctionReports.map(r=>`<div class="flex justify-between gap-2 border-b border-white/5 py-1"><span>${r.hall}</span><span class="font-mono text-cyan-400">${r.winner}</span><span class="text-amber-400/80 text-[10px]">${r.prize||''}</span></div>`).join('')
+      : '<div class="text-white/30">No settled halls yet — place bids to interact</div>';
+  }
+}
+function placeAuctionBid(idx){
+  const h=auctionHalls[idx];
+  if(!h||h.status!=='LIVE'||h.seconds<=0){toast('Hall not live','err');return}
+  if(state.genBalance<h.cost){toast('Not enough GEN','err');return}
+  const inp=document.getElementById('ah-bid-'+idx);
+  const val=parseFloat(inp&&inp.value);
+  if(!val||val<=0){toast('Enter a bid amount','err');return}
+  state.genBalance-=h.cost;
+  h.yourBids++;
+  h.lastBid=val;
+  h.seconds=Math.max(0,h.seconds-1); // ONLY countdown source: registered bid
+  const genEl=document.getElementById('genBal'); if(genEl) genEl.textContent=state.genBalance.toLocaleString();
+  toast(`${h.id}: $${val} · −${h.cost} GEN · −1s`);
+  if(h.seconds<=0) settleHall(idx);
+  else renderAuctions();
+}
+function settleHall(idx){
+  const h=auctionHalls[idx];
+  h.status='ENDED';
+  h.seconds=0;
+  h.winner=h.yourBids>0?'GX-7F3A91C2':'GX-DEMO'+h.id;
+  auctionReports.unshift({hall:h.id,winner:h.winner,prize:h.prizeLabel,note:`Series ${h.series}`});
+  toast(`${h.id} settled · Winner ${h.winner} · ${h.prizeLabel}`);
+  renderAuctions();
+}
+// Daily gift timer only (auctions do NOT auto-tick)
+setInterval(()=>{ tickDailyGift(); },1000);
+
+// Binary volume — weaker leg matters. Example data (launch pay prices)
+const binaryVolume={
+  left:{
+    people:5,
+    packs:{Bronze:0,Silver:2,Gold:1,Platinum:1,Diamond:0},
+    // 2×$18 + 1×$60 + 1×$180 = $276 — user example ~$230; we show exact launch totals
+  },
+  right:{
+    people:3,
+    packs:{Bronze:3,Silver:0,Gold:0,Platinum:0,Diamond:0},
+    // 3×$9 = $27
+  }
+};
+// Binary volume base = economic during normal price; with 50% launch OFF → volume halves.
+// Owner fee NEVER discounted. Max Cap = 7× FULL economic (never reduced by launch OFF).
+const packEconomicFull={Bronze:10,Silver:30,Gold:100,Platinum:300,Diamond:1000};
+function packBinaryVolumeUnit(name){
+  const full=packEconomicFull[name]||0;
+  return isLaunchActive()? full*0.5 : full;
+}
+function legVolume(leg){
+  let sum=0;
+  Object.keys(leg.packs).forEach(k=>{ sum += (leg.packs[k]||0)*packBinaryVolumeUnit(k); });
+  return sum;
+}
+function renderBinaryReport(){
+  const L=binaryVolume.left, R=binaryVolume.right;
+  const lv=legVolume(L), rv=legVolume(R);
+  const weaker=Math.min(lv,rv);
+  const weakerSide=lv<=rv?'LEFT':'RIGHT';
+  const el=document.getElementById('binaryReportBody');
+  if(!el) return;
+  function packLines(packs){
+    return Object.keys(packs).filter(k=>packs[k]>0)
+      .map(k=>`<div class="flex justify-between"><span>${packs[k]}× ${k}</span><span class="text-white/70">$${(packs[k]*packBinaryVolumeUnit(k)).toLocaleString()} vol</span></div>`)
+      .join('') || '<div class="text-white/30">No paid packages</div>';
+  }
+  el.innerHTML=`
+    <div class="glass rounded-xl p-3">
+      <div class="font-bold text-pink-400 mb-1">LEFT · ${L.people} people · $${lv.toLocaleString()} vol</div>
+      ${packLines(L.packs)}
+    </div>
+    <div class="glass rounded-xl p-3">
+      <div class="font-bold text-emerald-400 mb-1">RIGHT · ${R.people} people · $${rv.toLocaleString()} vol</div>
+      ${packLines(R.packs)}
+    </div>`;
+  const note=document.getElementById('binaryWeakerNote');
+  if(note) note.innerHTML=`Weaker leg = <b>${weakerSide}</b> · matching volume <b>$${weaker.toLocaleString()}</b>. Launch 50% OFF halves binary volume only. Owner fee & Max Cap stay full.`;
+  const tl=document.getElementById('teamLeftVol'); if(tl) tl.textContent='$'+lv.toLocaleString();
+  const tr=document.getElementById('teamRightVol'); if(tr) tr.textContent='$'+rv.toLocaleString();
+  const td=document.getElementById('teamDirectN'); if(td) td.textContent=String(L.people+R.people);
+  const tt=document.getElementById('teamTotalN'); if(tt) tt.textContent=String(L.people+R.people);
+}
+function renderNotifs(){
+  const items=[
+    {t:'New tasks unlocked (12:00)',time:'today'},
+    {t:'Task verification complete',time:'15m'},
+    {t:'Package tokens credited',time:'1h'},
+    {t:'Referral seat expired (no pay 15m)',time:'2h'},
+    {t:'Withdrawal pending',time:'1d'},
+  ];
+  document.getElementById('notifList').innerHTML=items.map(n=>`
+    <div class="card p-3 flex justify-between items-center">
+      <div class="text-sm">${n.t}</div><div class="text-[10px] text-white/30">${n.time}</div>
+    </div>`).join('');
+}
+function renderRules(){
+  const rules=currentLang==='fa'
+    ?['تقلب ممنوع','چندحسابی ممنوع','مدرک جعلی ممنوع','سوءاستفاده معرف ممنوع','دستکاری تسک ممنوع','دور زدن تأیید ممنوع','سوءاستفاده از باگ ممنوع','انتقال غیرمجاز حساب ممنوع']
+    :['No cheating','No multi-accounts','No fake evidence','No referral abuse','No task manipulation','No verification bypass','No bug abuse','No unauthorized account transfer'];
+  document.getElementById('rulesContent').innerHTML=rules.map((r,i)=>`<div><span class="text-cyan-400 font-bold">${i+1}.</span> ${r}</div>`).join('');
+}
+function submitTicket(){
+  const v=document.getElementById('ticketInput').value.trim();
+  if(!v){toast('Empty','err');return}
+  document.getElementById('ticketInput').value='';
+  toast(currentLang==='fa'?'تیکت ثبت شد':'Ticket created');
+}
+function saveProfile(){
+  const n=document.getElementById('editName').value.trim()||'Aria Nova';
+  const u=document.getElementById('editUser').value.trim()||'aria_nova';
+  const b=document.getElementById('editBio').value.trim()||'';
+  document.getElementById('profName').textContent=n;
+  document.getElementById('dashName').textContent=n;
+  document.getElementById('menuName').textContent=n;
+  document.getElementById('profUser').textContent='@'+u.replace(/^@/,'');
+  document.getElementById('profBio').textContent=b;
+  closeModal('profileModal');
+  toast(currentLang==='fa'?'پروفایل ذخیره شد':'Profile saved');
+}
+
+// WALLET + ONBOARD
+function syncWalletUI(){
+  const on=state.walletConnected;
+  const st=document.getElementById('walletStatusOnboard');
+  const btnC=document.getElementById('btnConnectWallet');
+  const btnD=document.getElementById('btnDisconnectWalletOnboard');
+  if(st){st.textContent=on?'Connected · UQD3...9K2X · VERIFIED':'Not connected';st.className=on?'text-[11px] text-emerald-400 mt-2 text-center':'text-[11px] text-white/40 mt-2 text-center'}
+  if(btnC){btnC.textContent=on?'Wallet connected':'Connect Wallet';btnC.disabled=!!on}
+  if(btnD){btnD.classList.toggle('hidden',!on)}
+  const badge=document.getElementById('walletBadge');
+  if(badge){badge.textContent=on?'VERIFIED':'NOT CONNECTED';badge.className=on?'badge badge-ok mb-4':'badge badge-warn mb-4'}
+  const addr=document.getElementById('walletAddr');
+  if(addr) addr.textContent=on?'UQD3...9K2X':'—';
+  const wc=document.getElementById('btnWalletConnect');
+  const wv=document.getElementById('btnWalletVerify');
+  const wd=document.getElementById('btnWalletDisconnect');
+  if(wc){wc.classList.toggle('hidden',on);wc.disabled=false}
+  if(wv) wv.classList.toggle('hidden',!on);
+  if(wd) wd.classList.toggle('hidden',!on);
+  updateEnterBtn();
+}
+function doConnectWallet(){
+  state.walletConnected=true;
+  syncWalletUI();
+  toast(currentLang==='fa'?'کیف پول متصل شد (دمو)':'Wallet connected (demo)');
+}
+function doDisconnectWallet(){
+  state.walletConnected=false;
+  syncWalletUI();
+  toast(currentLang==='fa'?'قطع شد (دمو)':'Disconnected (demo)');
+}
+function updateEnterBtn(){
+  const terms=document.getElementById('termsCheck');
+  state.termsAccepted=!!(terms&&terms.checked);
+  // Demo: Terms acceptance unlocks Enter so you can explore the full platform
+  const ok=state.termsAccepted;
+  const btn=document.getElementById('btnEnterApp');
+  if(btn){
+    btn.disabled=!ok;
+    btn.classList.toggle('opacity-50',!ok);
+  }
+  const payBtn=document.getElementById('btnPaySelected');
+  if(payBtn){
+    const canPay=!!state.selectedPackageId;
+    payBtn.disabled=!canPay;
+    payBtn.classList.toggle('opacity-50',!canPay);
+  }
+}
+function enterApp(){
+  const terms=document.getElementById('termsCheck');
+  state.termsAccepted=!!(terms&&terms.checked);
+  if(!state.termsAccepted){
+    toast('Please accept the Terms of Use first','err');
+    openTermsModal();
+    return;
+  }
+  state.entered=true;
+  document.getElementById('onboardGate').classList.add('hidden');
+  document.getElementById('userApp').classList.remove('hidden');
+  syncWalletUI();
+  toast('Welcome to GENYX');
+}
+
+function switchMode(mode){
+  if(mode==='admin'){
+    document.getElementById('userApp').classList.add('hidden');
+    document.getElementById('onboardGate').classList.add('hidden');
+    document.getElementById('adminApp').classList.remove('hidden');
+    document.getElementById('adminLogin').classList.remove('hidden');
+    document.getElementById('adminMain').classList.add('hidden');
+  } else {
+    document.getElementById('adminApp').classList.add('hidden');
+    if(state.entered){
+      document.getElementById('userApp').classList.remove('hidden');
+    } else {
+      document.getElementById('onboardGate').classList.remove('hidden');
+    }
+  }
+}
+function adminLogin(){
+  document.getElementById('adminLogin').classList.add('hidden');
+  document.getElementById('adminMain').classList.remove('hidden');
+  showAdminTab('dash');
+}
+const adminHalls=[
+  {id:1,name:'Hall 1 · Standard',status:'LIVE',reward:'Badge + GEN',minBid:0.1},
+  {id:2,name:'Hall 2 · Premium',status:'LIVE',reward:'USDC prize',minBid:0.25},
+  {id:3,name:'Hall 3 · Elite',status:'SOON',reward:'Elite badge',minBid:0.5},
+];
+function showAdminTab(tab){
+  document.querySelectorAll('.admin-tab').forEach(b=>{
+    const on=b.dataset.tab===tab;
+    b.className=on?'admin-tab px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-400':'admin-tab px-3 py-1.5 rounded-lg text-white/50';
+  });
+  const c=document.getElementById('adminTabContent');
+  if(tab==='dash'){
+    c.innerHTML=`<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div class="card p-4"><div class="text-[10px] text-white/40">Users</div><div class="text-xl font-bold">24,820</div></div>
+      <div class="card p-4"><div class="text-[10px] text-white/40">Flagged</div><div class="text-xl font-bold text-red-400">182</div></div>
+      <div class="card p-4"><div class="text-[10px] text-white/40">Task verify queue</div><div class="text-xl font-bold text-amber-400">47</div></div>
+      <div class="card p-4"><div class="text-[10px] text-white/40">Withdrawals</div><div class="text-xl font-bold">93</div></div>
+      <div class="card p-4 col-span-2"><div class="text-[10px] text-white/40">Launch timer</div><div class="font-mono text-amber-400 font-bold" id="launchTimerDash">${formatLaunchRemain()}</div><div class="text-[11px] text-white/40 mt-1">${isLaunchActive()?'50% OFF active':'Ended / OFF'}</div></div>
+      <div class="card p-4 col-span-2"><div class="text-[10px] text-white/40">Referral seats</div><div class="text-sm mt-1">Unpaid seats auto-remove after 15 min</div></div>
+    </div>`;
+  } else if(tab==='launch'){
+    c.innerHTML=`<div class="card p-4 mb-3">
+      <div class="font-bold mb-2">Launch promo control</div>
+      <div class="text-sm mb-2">Status: <b class="${isLaunchActive()?'text-emerald-400':'text-amber-400'}">${isLaunchActive()?'ACTIVE 50% OFF':'INACTIVE'}</b></div>
+      <div class="font-mono text-amber-400 text-lg mb-3" id="launchTimerDash">${formatLaunchRemain()}</div>
+      <div class="flex flex-wrap gap-2 mb-4">
+        <button type="button" onclick="launchState.active=true;launchState.endsAt=Date.now()+30*24*60*60*1000;renderPackages();showAdminTab('launch');toast('Launch 30d started')" class="text-xs px-3 py-2 rounded-lg bg-emerald-500/20 text-emerald-400 font-semibold">Start 30 days</button>
+        <button type="button" onclick="launchState.endsAt=Date.now()+7*24*60*60*1000;launchState.active=true;renderPackages();showAdminTab('launch');toast('Extended +7d')" class="text-xs px-3 py-2 rounded-lg bg-cyan-500/20 text-cyan-400 font-semibold">Extend +7 days</button>
+        <button type="button" onclick="launchState.endsAt=Date.now()+1*24*60*60*1000;launchState.active=true;renderPackages();showAdminTab('launch');toast('+1 day')" class="text-xs px-3 py-2 rounded-lg glass text-xs font-semibold">+1 day</button>
+        <button type="button" onclick="launchState.active=false;launchState.endsAt=Date.now();renderPackages();showAdminTab('launch');toast('Launch ended')" class="text-xs px-3 py-2 rounded-lg bg-red-500/20 text-red-400 font-semibold">End now</button>
+      </div>
+      <label class="flex items-center gap-2 text-sm text-white/70">
+        <input type="checkbox" ${launchState.vipLaneAfterEnd?'checked':''} onchange="launchState.vipLaneAfterEnd=this.checked;toast('VIP lane after end: '+this.checked)">
+        After timer ends → enable VIP Task Lane
+      </label>
+      <p class="text-[11px] text-white/40 mt-3">Owner fee is never discounted (internal). Users only see launch pay price.</p>
+    </div>`;
+  } else if(tab==='packages'){
+    c.innerHTML=`<div class="card p-4 mb-3 text-xs text-white/50">Internal · Owner fee on full economic (no discount) · User never sees owner column</div>
+    <div class="space-y-2">${packages.map(p=>`<div class="card p-3 text-sm">
+      <div class="flex justify-between"><b>${p.name}</b><span class="text-emerald-400">Pay $${pkgPay(p)}</span></div>
+      <div class="text-[11px] text-white/40 mt-1">List $${p.listPrice} · Economic $${p.economic} · Owner $${p.owner} (full) · Cap $${p.maxCap} · ${p.tokens}+${p.bonus} GEN</div>
+    </div>`).join('')}</div>`;
+  } else if(tab==='auctions'){
+    c.innerHTML=`<p class="text-xs text-white/40 mb-3">Exactly 3 halls · Pause / reward / settle controlled here</p>
+    <div class="space-y-3">${adminHalls.map((h,i)=>`<div class="card p-4">
+      <div class="flex justify-between mb-2"><div class="font-bold text-sm">${h.name}</div><span class="badge ${h.status==='LIVE'?'badge-live':'badge-warn'}">${h.status}</span></div>
+      <div class="text-[11px] text-white/40 mb-2">Reward: ${h.reward} · Min bid $${h.minBid}</div>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" onclick="adminHalls[${i}].status='LIVE';showAdminTab('lottery');toast('Hall live')" class="text-xs px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">Start/Live</button>
+        <button type="button" onclick="adminHalls[${i}].status='PAUSED';showAdminTab('lottery');toast('Paused')" class="text-xs px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-400">Pause</button>
+        <button type="button" onclick="toast('Settled server-side (demo)')" class="text-xs px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-400">Settle</button>
+        <button type="button" onclick="toast('Reward updated (demo)')" class="text-xs px-3 py-1.5 rounded-lg glass">Edit reward</button>
+      </div>
+    </div>`).join('')}</div>`;
+  } else if(tab==='tasks'){
+    c.innerHTML=`<div class="card p-4 mb-3"><div class="font-bold text-sm mb-2">Verification queue</div>
+      <div class="text-xs space-y-2">
+        <div class="flex justify-between border-b border-white/5 py-2"><span>GX-A1B2C3D4 · TASK 201</span><span><button class="text-emerald-400 text-xs me-2" onclick="toast('Approved')">Approve</button><button class="text-red-400 text-xs" onclick="toast('Rejected')">Reject</button></span></div>
+        <div class="flex justify-between border-b border-white/5 py-2"><span>GX-M3N4O5P6 · TASK 204</span><span><button class="text-emerald-400 text-xs me-2" onclick="toast('Approved')">Approve</button><button class="text-red-400 text-xs" onclick="toast('Rejected')">Reject</button></span></div>
+      </div></div>
+      <button type="button" onclick="toast('Task builder (demo)')" class="btn w-full py-2.5 rounded-xl bg-cyan-500 text-black font-bold text-sm">+ Create task</button>`;
+  } else if(tab==='fraud'){
+    c.innerHTML=`<div class="grid grid-cols-2 gap-3 mb-3">
+      <div class="card p-3 text-center"><div class="text-2xl font-bold">15</div><span class="badge badge-live">HIGH</span></div>
+      <div class="card p-3 text-center"><div class="text-2xl font-bold">3</div><span class="badge badge-live">CRITICAL</span></div>
+    </div>
+    <div class="card p-4 text-xs text-white/50">Multi-account · Wallet reuse · Impossible timing · Fake evidence · Referral abuse</div>`;
+  } else if(tab==='withdrawals'){
+    c.innerHTML=`<div class="card p-4 space-y-2 text-sm">
+      <div class="flex justify-between py-2 border-b border-white/5"><span>GX-7F3A91C2 · $196</span><span><button class="text-emerald-400 text-xs" onclick="toast('Approved')">Approve</button></span></div>
+      <div class="flex justify-between py-2"><span>GX-A1B2C3D4 · $50</span><span class="text-white/40 text-xs">Paid</span></div>
+      <div class="text-[11px] text-white/30 mt-2">Fee 1.5% · Min $3 · Max 2/day (system rules)</div>
+    </div>`;
+  }
+}
+
+function cycleLang(){
+  const order=['en','fa','ar'];
+  const i=order.indexOf(currentLang);
+  setLang(order[(i+1)%order.length]);
+}
+function init(){
+  setLang('en');
+  renderTasks(); renderShop(); renderNotifs(); renderRules(); renderAuctions(); renderPackages(); renderTree(); renderBinaryReport();
+  syncWalletUI();
+  updateEnterBtn();
+  tickLaunchTimers();
+  setInterval(()=>{
+    tickLaunchTimers();
+    tasks.filter(m=>m.status==='pending'&&m.countdown>0).forEach(m=>{
+      m.countdown--;
+      const el=document.getElementById('cd-'+m.id);
+      if(el){const mm=Math.floor(m.countdown/60),ss=m.countdown%60;el.textContent=`${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`}
+      if(m.countdown<=0){m.status='done';renderTasks()}
+    });
+  },1000);
+}
+document.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>

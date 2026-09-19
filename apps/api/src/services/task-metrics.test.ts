@@ -1,0 +1,5 @@
+import {expect,it,vi} from 'vitest';
+import {checkMetric} from './task-metrics.js';
+it('uses whole-USDT targets against atomic cap values',async()=>{const tx={user:{findUniqueOrThrow:vi.fn().mockResolvedValue({maxCap:70000000n})}};expect(await checkMetric(tx as any,'u','MAX_CAP_REACHED',70)).toBe(true);expect(await checkMetric(tx as any,'u','MAX_CAP_REACHED',71)).toBe(false);});
+it('counts only this user’s requested purchase category',async()=>{const tx={user:{findUniqueOrThrow:vi.fn().mockResolvedValue({})},shopPurchase:{count:vi.fn().mockResolvedValue(2)}};expect(await checkMetric(tx as any,'u','SHOP_TIME_COUNT',3)).toBe(false);expect(tx.shopPurchase.count).toHaveBeenCalledWith({where:{userId:'u',item:{category:'TIME'}}});});
+it('does not treat voucher slots as cash cycles',async()=>{const tx={user:{findUniqueOrThrow:vi.fn().mockResolvedValue({})},binaryPosition:{findUnique:vi.fn().mockResolvedValue({slots:6n})},binaryReceipt:{aggregate:vi.fn().mockResolvedValue({_sum:{vouchers:1}})}};expect(await checkMetric(tx as any,'u','CYCLES_REACHED',6)).toBe(false);expect(await checkMetric(tx as any,'u','CYCLES_REACHED',5)).toBe(true);});

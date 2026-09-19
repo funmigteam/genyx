@@ -1,0 +1,628 @@
+<!-- Project source: https://github.com/funmigteam -->
+<!DOCTYPE html>
+<html lang="en" dir="ltr" id="html-root">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GENESIS Admin Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Vazirmatn:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --neon: #00f5ff; --bg: #0a0a0f; }
+        body { font-family: 'Inter', system-ui, sans-serif; background: #0a0a0f; color: #e5e5e5; }
+        [dir="rtl"] body { font-family: 'Vazirmatn', system-ui, sans-serif; }
+        .sidebar { width: 260px; background: #111118; border-right: 1px solid rgba(255,255,255,0.06); }
+        [dir="rtl"] .sidebar { border-right: none; border-left: 1px solid rgba(255,255,255,0.06); }
+        .nav-item { transition: all 0.15s; }
+        .nav-item:hover, .nav-item.active { background: rgba(0,245,255,0.08); color: #00f5ff; }
+        .card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
+        .stat-card { background: linear-gradient(145deg, #12121a, #0f0f15); border: 1px solid rgba(255,255,255,0.06); }
+        .badge-live { background: rgba(239,68,68,0.15); color: #f87171; }
+        .badge-ok { background: rgba(16,185,129,0.15); color: #34d399; }
+        .badge-warn { background: rgba(245,158,11,0.15); color: #fbbf24; }
+        .table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; }
+        .table td { border-top: 1px solid rgba(255,255,255,0.04); }
+        .page { display: none; }
+        .page.active { display: block; }
+        .login-bg { background: radial-gradient(ellipse at center, #0f172a 0%, #050505 70%); }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <div id="login-screen" class="fixed inset-0 z-50 login-bg flex items-center justify-center">
+        <div class="w-full max-w-md px-6">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-[#00f5ff] to-[#ff00aa] flex items-center justify-center text-black font-bold text-2xl mb-4">G</div>
+                <h1 class="text-2xl font-bold text-white">GENESIS Admin</h1>
+                <p class="text-sm text-white/40 mt-1">Secure Administration Portal</p>
+            </div>
+            <div class="card rounded-2xl p-6 space-y-4">
+                <div>
+                    <label class="text-xs text-white/50 mb-1.5 block">Email / Username</label>
+                    <input id="login-email" type="text" class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#00f5ff]" placeholder="admin@genesis.app">
+                </div>
+                <div>
+                    <label class="text-xs text-white/50 mb-1.5 block">Password</label>
+                    <input id="login-pass" type="password" class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#00f5ff]" placeholder="••••••••">
+                </div>
+                <button onclick="doLogin()" class="w-full py-3.5 rounded-xl font-bold bg-[#00f5ff] text-black">Sign In</button>
+                <p class="text-[11px] text-center text-white/30">2FA required for production · RBAC enforced server-side</p>
+            </div>
+            <div class="mt-6 flex justify-center gap-2">
+                <button onclick="setLang('en')" class="px-3 py-1 text-xs rounded-lg bg-white/5">EN</button>
+                <button onclick="setLang('fa')" class="px-3 py-1 text-xs rounded-lg bg-white/5">FA</button>
+                <button onclick="setLang('ar')" class="px-3 py-1 text-xs rounded-lg bg-white/5">AR</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== 2FA SCREEN ========== -->
+    <div id="tfa-screen" class="fixed inset-0 z-50 login-bg hidden flex items-center justify-center">
+        <div class="w-full max-w-sm px-6 text-center">
+            <div class="card rounded-2xl p-8">
+                <i class="fa-solid fa-shield-halved text-4xl text-[#00f5ff] mb-4"></i>
+                <h2 class="text-xl font-bold mb-2">Two-Factor Authentication</h2>
+                <p class="text-sm text-white/50 mb-6">Enter the 6-digit code from your authenticator app</p>
+                <input id="tfa-code" type="text" maxlength="6" class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-center text-2xl tracking-widest outline-none focus:border-[#00f5ff] mb-4" placeholder="000000">
+                <button onclick="verify2FA()" class="w-full py-3 rounded-xl font-bold bg-[#00f5ff] text-black">Verify</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== MAIN ADMIN ========== -->
+    <div id="admin-app" class="hidden flex min-h-screen">
+        <!-- Sidebar -->
+        <aside class="sidebar fixed top-0 left-0 h-full overflow-y-auto z-40 hidden lg:block">
+            <div class="p-5 border-b border-white/5">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#00f5ff] to-[#ff00aa] flex items-center justify-center text-black font-bold text-sm">G</div>
+                    <div>
+                        <div class="font-bold text-sm">GENESIS</div>
+                        <div class="text-[10px] text-white/40">Admin Portal</div>
+                    </div>
+                </div>
+            </div>
+            <nav class="py-3 text-sm">
+                <div class="px-4 py-2 text-[10px] uppercase tracking-wider text-white/30">Overview</div>
+                <a onclick="showPage('dashboard')" class="nav-item active flex items-center gap-3 px-5 py-2.5 cursor-pointer" data-page="dashboard">
+                    <i class="fa-solid fa-chart-line w-5 text-center"></i> Dashboard
+                </a>
+                <div class="px-4 py-2 text-[10px] uppercase tracking-wider text-white/30 mt-3">Users</div>
+                <a onclick="showPage('users')" class="nav-item flex items-center gap-3 px-5 py-2.5 cursor-pointer" data-page="users">
+                    <i class="fa-solid fa-users w-5 text-center"></i> Users
+                </a>
+                <a onclick="showPage('fraud')" class="nav-item flex items-center gap-3 px-5 py-2.5 cursor-pointer" data-page="fraud">
+                    <i class="fa-solid fa-user-shield w-5 text-center"></i> Fraud Center
+                </a>
+                <div class="px-4 py-2 text-[10px] uppercase tracking-wider text-white/30 mt-3">Operations</div>
+                <a onclick="showPage('missions')" class="nav-item flex items-center gap-3 px-5 py-2.5 cursor-pointer" data-page="missions">
+                    <i class="fa-solid fa-rocket w-5 text-center"></i> Missions
+                </a>
+                <a onclick="showPage('auctions')" class="nav-item flex items-center gap-3 px-5 py-2.5 cursor-pointer" data-page="auctions">
+                    <i class="fa-solid fa-gavel w-5 text-center"></i> Auctions
+                </a>
+                <a onclick="showPage('packages')" class="nav-item flex items-center gap-3 px-5 py-2.5 cursor-pointer" data-page="packages">
+                    <i class="fa-solid fa-box w-5 text-center"></i> Packages
+                </a>
+                <a onclick="showPage('shop')" class="nav-item flex items-center gap-3 px-5 py-2.5 cursor-pointer" data-page="shop">
+                    <i class="fa-solid fa-store w-5 text-center"></i> Shop
+                </a>
+                <div class="px-4 py-2 text-[10px] uppercase tracking-wider text-white/30 mt-3">Finance</div>
+                <a onclick="showPage('ledger')" class="nav-item flex items-center gap-3 px-5 py-2.5 cursor-pointer" data-page="ledger">
+                    <i class="fa-solid fa-book w-5 text-center"></i> Ledgers
+                </a>
+                <a onclick="showPage('economics')" class="nav-item flex items-center gap-3 px-5 py-2.5 cursor-pointer" data-page="economics">
+                    <i class="fa-solid fa-coins w-5 text-center"></i> Economics
+                </a>
+                <div class="px-4 py-2 text-[10px] uppercase tracking-wider text-white/30 mt-3">System</div>
+                <a onclick="showPage('binary')" class="nav-item flex items-center gap-3 px-5 py-2.5 cursor-pointer" data-page="binary">
+                    <i class="fa-solid fa-sitemap w-5 text-center"></i> Binary Tree
+                </a>
+                <a onclick="showPage('audit')" class="nav-item flex items-center gap-3 px-5 py-2.5 cursor-pointer" data-page="audit">
+                    <i class="fa-solid fa-clipboard-list w-5 text-center"></i> Audit Logs
+                </a>
+                <a onclick="showPage('roles')" class="nav-item flex items-center gap-3 px-5 py-2.5 cursor-pointer" data-page="roles">
+                    <i class="fa-solid fa-user-lock w-5 text-center"></i> Roles & Permissions
+                </a>
+                <a onclick="showPage('settings')" class="nav-item flex items-center gap-3 px-5 py-2.5 cursor-pointer" data-page="settings">
+                    <i class="fa-solid fa-gear w-5 text-center"></i> System Settings
+                </a>
+                <div class="border-t border-white/5 mt-4 pt-3">
+                    <a onclick="logoutAdmin()" class="nav-item flex items-center gap-3 px-5 py-2.5 cursor-pointer text-red-400">
+                        <i class="fa-solid fa-right-from-bracket w-5 text-center"></i> Logout
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 lg:ml-[260px] min-h-screen">
+            <!-- Topbar -->
+            <header class="sticky top-0 z-30 bg-[#0a0a0f]/90 backdrop-blur border-b border-white/5 px-6 py-3 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <button class="lg:hidden text-white/70" onclick="document.querySelector('.sidebar').classList.toggle('hidden')">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+                    <h1 id="page-title" class="font-semibold">Dashboard</h1>
+                </div>
+                <div class="flex items-center gap-4">
+                    <span class="text-xs text-white/40">Role: <span class="text-[#00f5ff]">Super Admin</span></span>
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-[#00f5ff] to-[#ff00aa] flex items-center justify-center text-black text-xs font-bold">SA</div>
+                </div>
+            </header>
+
+            <div class="p-6">
+                <!-- DASHBOARD -->
+                <div id="page-dashboard" class="page active">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <div class="stat-card rounded-2xl p-4">
+                            <div class="text-xs text-white/40 mb-1">Total Users</div>
+                            <div class="text-2xl font-bold">12,847</div>
+                            <div class="text-[11px] text-emerald-400 mt-1">+342 today</div>
+                        </div>
+                        <div class="stat-card rounded-2xl p-4">
+                            <div class="text-xs text-white/40 mb-1">Active Users</div>
+                            <div class="text-2xl font-bold">3,291</div>
+                            <div class="text-[11px] text-white/40 mt-1">Last 24h</div>
+                        </div>
+                        <div class="stat-card rounded-2xl p-4">
+                            <div class="text-xs text-white/40 mb-1">Connected Wallets</div>
+                            <div class="text-2xl font-bold">8,102</div>
+                            <div class="text-[11px] text-white/40 mt-1">63% of users</div>
+                        </div>
+                        <div class="stat-card rounded-2xl p-4">
+                            <div class="text-xs text-white/40 mb-1">Package Revenue</div>
+                            <div class="text-2xl font-bold">$184.2k</div>
+                            <div class="text-[11px] text-emerald-400 mt-1">Owner alloc: $18.4k</div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div class="stat-card rounded-2xl p-4">
+                            <div class="text-xs text-white/40 mb-1">Pending Mission Verifications</div>
+                            <div class="text-2xl font-bold text-orange-400">47</div>
+                        </div>
+                        <div class="stat-card rounded-2xl p-4">
+                            <div class="text-xs text-white/40 mb-1">Active Auctions</div>
+                            <div class="text-2xl font-bold text-[#00f5ff]">3</div>
+                        </div>
+                        <div class="stat-card rounded-2xl p-4">
+                            <div class="text-xs text-white/40 mb-1">Suspicious Accounts</div>
+                            <div class="text-2xl font-bold text-red-400">12</div>
+                        </div>
+                    </div>
+                    <div class="card rounded-2xl p-5">
+                        <h3 class="font-semibold mb-4">System Health</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> API Online</div>
+                            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> PostgreSQL OK</div>
+                            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> Redis OK</div>
+                            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-yellow-400"></span> 2 Failed Jobs</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- USERS -->
+                <div id="page-users" class="page">
+                    <div class="flex flex-wrap gap-3 mb-5">
+                        <input type="text" placeholder="Search by Structural ID, Telegram ID, username..." class="flex-1 min-w-[240px] bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#00f5ff]">
+                        <select class="bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm">
+                            <option>All Status</option>
+                            <option>Active</option>
+                            <option>Suspended</option>
+                            <option>Wallet Connected</option>
+                        </select>
+                        <button class="px-4 py-2.5 rounded-xl bg-[#00f5ff] text-black text-sm font-semibold">Search</button>
+                    </div>
+                    <div class="card rounded-2xl overflow-hidden">
+                        <table class="w-full table text-sm">
+                            <thead>
+                                <tr class="text-left">
+                                    <th class="px-4 py-3">Structural ID</th>
+                                    <th class="px-4 py-3">Username</th>
+                                    <th class="px-4 py-3">Level</th>
+                                    <th class="px-4 py-3">Package</th>
+                                    <th class="px-4 py-3">Wallet</th>
+                                    <th class="px-4 py-3">Status</th>
+                                    <th class="px-4 py-3">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="px-4 py-3 font-mono text-[#00f5ff]">GX-7K4P9X2</td>
+                                    <td class="px-4 py-3">CryptoKing</td>
+                                    <td class="px-4 py-3">12</td>
+                                    <td class="px-4 py-3">$110</td>
+                                    <td class="px-4 py-3"><span class="badge-ok text-xs px-2 py-0.5 rounded">Connected</span></td>
+                                    <td class="px-4 py-3"><span class="badge-ok text-xs px-2 py-0.5 rounded">Active</span></td>
+                                    <td class="px-4 py-3"><button class="text-[#00f5ff] text-xs">View</button></td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3 font-mono text-[#00f5ff]">GX-A3B8C1D</td>
+                                    <td class="px-4 py-3">MoonWalker</td>
+                                    <td class="px-4 py-3">5</td>
+                                    <td class="px-4 py-3">$11</td>
+                                    <td class="px-4 py-3"><span class="badge-warn text-xs px-2 py-0.5 rounded">None</span></td>
+                                    <td class="px-4 py-3"><span class="badge-ok text-xs px-2 py-0.5 rounded">Active</span></td>
+                                    <td class="px-4 py-3"><button class="text-[#00f5ff] text-xs">View</button></td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3 font-mono text-[#00f5ff]">GX-9F2E7H1</td>
+                                    <td class="px-4 py-3">SuspiciousUser</td>
+                                    <td class="px-4 py-3">2</td>
+                                    <td class="px-4 py-3">—</td>
+                                    <td class="px-4 py-3"><span class="badge-warn text-xs px-2 py-0.5 rounded">None</span></td>
+                                    <td class="px-4 py-3"><span class="badge-live text-xs px-2 py-0.5 rounded">Flagged</span></td>
+                                    <td class="px-4 py-3"><button class="text-[#00f5ff] text-xs">View</button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-xs text-white/30 mt-3">All actions create audit logs. Financial balances cannot be edited without controlled ledger workflow.</p>
+                </div>
+
+                <!-- MISSIONS -->
+                <div id="page-missions" class="page">
+                    <div class="flex justify-between items-center mb-5">
+                        <h2 class="font-semibold">Mission Management</h2>
+                        <button class="px-4 py-2 rounded-xl bg-[#00f5ff] text-black text-sm font-semibold">+ Create Mission</button>
+                    </div>
+                    <div class="card rounded-2xl p-5 mb-5">
+                        <h3 class="text-sm font-semibold mb-3 text-orange-400">Pending Verifications (47)</h3>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between items-center py-2 border-b border-white/5">
+                                <div><span class="font-mono text-[#00f5ff]">GX-7K4P9X2</span> · Daily Login · completed 12 min ago</div>
+                                <div class="flex gap-2">
+                                    <button class="px-3 py-1 rounded-lg bg-emerald-500/20 text-emerald-400 text-xs">Approve</button>
+                                    <button class="px-3 py-1 rounded-lg bg-red-500/20 text-red-400 text-xs">Reject</button>
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center py-2">
+                                <div><span class="font-mono text-[#00f5ff]">GX-A3B8C1D</span> · Invite Friend · completed 8 min ago</div>
+                                <div class="flex gap-2">
+                                    <button class="px-3 py-1 rounded-lg bg-emerald-500/20 text-emerald-400 text-xs">Approve</button>
+                                    <button class="px-3 py-1 rounded-lg bg-red-500/20 text-red-400 text-xs">Reject</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card rounded-2xl overflow-hidden">
+                        <table class="w-full table text-sm">
+                            <thead>
+                                <tr class="text-left">
+                                    <th class="px-4 py-3">ID</th>
+                                    <th class="px-4 py-3">Title</th>
+                                    <th class="px-4 py-3">Type</th>
+                                    <th class="px-4 py-3">XP</th>
+                                    <th class="px-4 py-3">Status</th>
+                                    <th class="px-4 py-3">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="px-4 py-3">#1</td>
+                                    <td class="px-4 py-3">Daily Login</td>
+                                    <td class="px-4 py-3">Fixed</td>
+                                    <td class="px-4 py-3">20</td>
+                                    <td class="px-4 py-3"><span class="badge-ok text-xs px-2 py-0.5 rounded">Active</span></td>
+                                    <td class="px-4 py-3"><button class="text-[#00f5ff] text-xs">Edit</button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- AUCTIONS -->
+                <div id="page-auctions" class="page">
+                    <div class="flex justify-between items-center mb-5">
+                        <h2 class="font-semibold">Three Auction Halls</h2>
+                        <button class="px-4 py-2 rounded-xl bg-[#00f5ff] text-black text-sm font-semibold">+ Create Hall</button>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div class="card rounded-2xl p-5 border border-[#00f5ff]/20">
+                            <div class="flex justify-between mb-3">
+                                <span class="font-semibold">Standard Hall</span>
+                                <span class="badge-live text-xs px-2 py-0.5 rounded">LIVE</span>
+                            </div>
+                            <div class="text-sm text-white/50 mb-2">Prize: Special Badge + 50 UV</div>
+                            <div class="text-xs text-white/40 mb-4">Bids: 124 · Unique: 87</div>
+                            <div class="flex gap-2">
+                                <button class="flex-1 py-2 rounded-lg bg-white/5 text-xs">View Bids</button>
+                                <button class="flex-1 py-2 rounded-lg bg-orange-500/20 text-orange-400 text-xs">Pause</button>
+                            </div>
+                        </div>
+                        <div class="card rounded-2xl p-5 border border-pink-500/20">
+                            <div class="flex justify-between mb-3">
+                                <span class="font-semibold">Premium Hall</span>
+                                <span class="badge-live text-xs px-2 py-0.5 rounded">LIVE</span>
+                            </div>
+                            <div class="text-sm text-white/50 mb-2">Prize: Premium Package Access</div>
+                            <div class="text-xs text-white/40 mb-4">Bids: 56 · Unique: 41</div>
+                            <div class="flex gap-2">
+                                <button class="flex-1 py-2 rounded-lg bg-white/5 text-xs">View Bids</button>
+                                <button class="flex-1 py-2 rounded-lg bg-orange-500/20 text-orange-400 text-xs">Pause</button>
+                            </div>
+                        </div>
+                        <div class="card rounded-2xl p-5 border border-emerald-500/20">
+                            <div class="flex justify-between mb-3">
+                                <span class="font-semibold">Elite Hall</span>
+                                <span class="badge-warn text-xs px-2 py-0.5 rounded">SOON</span>
+                            </div>
+                            <div class="text-sm text-white/50 mb-2">Prize: Elite Badge + 200 UV</div>
+                            <div class="text-xs text-white/40 mb-4">Starts in 45 min</div>
+                            <div class="flex gap-2">
+                                <button class="flex-1 py-2 rounded-lg bg-white/5 text-xs">Edit</button>
+                                <button class="flex-1 py-2 rounded-lg bg-emerald-500/20 text-emerald-400 text-xs">Start Now</button>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-xs text-white/30">High-risk actions (Settle / Cancel) require confirmation + elevated authorization in production.</p>
+                </div>
+
+                <!-- PACKAGES -->
+                <div id="page-packages" class="page">
+                    <div class="flex justify-between items-center mb-5">
+                        <h2 class="font-semibold">Package Management</h2>
+                        <button class="px-4 py-2 rounded-xl bg-[#00f5ff] text-black text-sm font-semibold">+ Create Package</button>
+                    </div>
+                    <div class="card rounded-2xl overflow-hidden">
+                        <table class="w-full table text-sm">
+                            <thead>
+                                <tr class="text-left">
+                                    <th class="px-4 py-3">Name</th>
+                                    <th class="px-4 py-3">Price</th>
+                                    <th class="px-4 py-3">Max Cap (7×)</th>
+                                    <th class="px-4 py-3">Owner %</th>
+                                    <th class="px-4 py-3">Status</th>
+                                    <th class="px-4 py-3">Sales</th>
+                                    <th class="px-4 py-3">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="px-4 py-3">Launch Package</td>
+                                    <td class="px-4 py-3">$6</td>
+                                    <td class="px-4 py-3">$42</td>
+                                    <td class="px-4 py-3">10%</td>
+                                    <td class="px-4 py-3"><span class="badge-ok text-xs px-2 py-0.5 rounded">Active</span></td>
+                                    <td class="px-4 py-3">1,842</td>
+                                    <td class="px-4 py-3"><button class="text-[#00f5ff] text-xs">Edit</button></td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3">Starter</td>
+                                    <td class="px-4 py-3">$11</td>
+                                    <td class="px-4 py-3">$77</td>
+                                    <td class="px-4 py-3">10%</td>
+                                    <td class="px-4 py-3"><span class="badge-ok text-xs px-2 py-0.5 rounded">Active</span></td>
+                                    <td class="px-4 py-3">3,201</td>
+                                    <td class="px-4 py-3"><button class="text-[#00f5ff] text-xs">Edit</button></td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3">Builder</td>
+                                    <td class="px-4 py-3">$55</td>
+                                    <td class="px-4 py-3">$385</td>
+                                    <td class="px-4 py-3">10%</td>
+                                    <td class="px-4 py-3"><span class="badge-ok text-xs px-2 py-0.5 rounded">Active</span></td>
+                                    <td class="px-4 py-3">892</td>
+                                    <td class="px-4 py-3"><button class="text-[#00f5ff] text-xs">Edit</button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- SHOP -->
+                <div id="page-shop" class="page">
+                    <div class="flex justify-between items-center mb-5">
+                        <h2 class="font-semibold">Shop Products</h2>
+                        <button class="px-4 py-2 rounded-xl bg-[#00f5ff] text-black text-sm font-semibold">+ Add Product</button>
+                    </div>
+                    <div class="card rounded-2xl p-5 text-sm text-white/50 text-center">
+                        Product management UI · Prices & limits controlled here · All purchases create ledger entries
+                    </div>
+                </div>
+
+                <!-- LEDGERS -->
+                <div id="page-ledger" class="page">
+                    <h2 class="font-semibold mb-5">Financial Ledgers</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+                        <button class="card rounded-xl p-4 text-left hover:border-[#00f5ff]/30">
+                            <div class="font-semibold">XP Ledger</div>
+                            <div class="text-xs text-white/40 mt-1">Immutable XP changes</div>
+                        </button>
+                        <button class="card rounded-xl p-4 text-left hover:border-[#00f5ff]/30">
+                            <div class="font-semibold">Token Ledger</div>
+                            <div class="text-xs text-white/40 mt-1">GENESIS token movements</div>
+                        </button>
+                        <button class="card rounded-xl p-4 text-left hover:border-[#00f5ff]/30">
+                            <div class="font-semibold">Reward Ledger</div>
+                            <div class="text-xs text-white/40 mt-1">Commissions & rewards</div>
+                        </button>
+                    </div>
+                    <div class="card rounded-2xl p-5 text-sm text-white/40 text-center">
+                        Select a ledger to view detailed immutable transaction history.<br>
+                        Balances are derived from ledger entries.
+                    </div>
+                </div>
+
+                <!-- ECONOMICS -->
+                <div id="page-economics" class="page">
+                    <h2 class="font-semibold mb-5">Economic Configuration</h2>
+                    <div class="card rounded-2xl p-6 space-y-5 max-w-2xl">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <div class="font-medium">Owner Fee Percent</div>
+                                <div class="text-xs text-white/40">Default 10% of package amount</div>
+                            </div>
+                            <input type="number" value="10" class="w-24 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-center">
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <div class="font-medium">Max Cap Multiplier</div>
+                                <div class="text-xs text-white/40">Currently 7× package value</div>
+                            </div>
+                            <input type="number" value="7" class="w-24 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-center">
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <div class="font-medium">Mission Verification Delay (minutes)</div>
+                                <div class="text-xs text-white/40">Server-authoritative</div>
+                            </div>
+                            <input type="number" value="15" class="w-24 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-center">
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <div class="font-medium">Base XP per Level</div>
+                                <div class="text-xs text-white/40">XP_REQUIRED = BASE × LEVEL</div>
+                            </div>
+                            <input type="number" value="100" class="w-24 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-center">
+                        </div>
+                        <div class="pt-4 border-t border-white/10">
+                            <button class="px-6 py-2.5 rounded-xl bg-[#00f5ff] text-black font-semibold text-sm">Save & Version Change</button>
+                            <p class="text-[11px] text-white/30 mt-2">All economic changes are versioned and audited.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- BINARY -->
+                <div id="page-binary" class="page">
+                    <h2 class="font-semibold mb-5">Binary Tree Explorer</h2>
+                    <div class="card rounded-2xl p-5 mb-4">
+                        <input type="text" placeholder="Search by Structural ID..." class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#00f5ff] mb-4">
+                        <div class="text-center text-sm text-white/40 py-10">
+                            Tree visualization displays only Structural IDs (GX-XXXXXXX)<br>
+                            Never exposes Telegram IDs or personal data
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FRAUD -->
+                <div id="page-fraud" class="page">
+                    <h2 class="font-semibold mb-5">Fraud Center</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+                        <div class="stat-card rounded-2xl p-4">
+                            <div class="text-xs text-white/40">High Risk Score</div>
+                            <div class="text-2xl font-bold text-red-400">12</div>
+                        </div>
+                        <div class="stat-card rounded-2xl p-4">
+                            <div class="text-xs text-white/40">Multi-account Patterns</div>
+                            <div class="text-2xl font-bold text-orange-400">5</div>
+                        </div>
+                        <div class="stat-card rounded-2xl p-4">
+                            <div class="text-xs text-white/40">Wallet Reuse Flags</div>
+                            <div class="text-2xl font-bold text-yellow-400">8</div>
+                        </div>
+                    </div>
+                    <div class="card rounded-2xl p-5 text-sm text-white/40 text-center">
+                        Fraud scoring · Referral abuse · Auction manipulation · Impossible actions detection
+                    </div>
+                </div>
+
+                <!-- AUDIT -->
+                <div id="page-audit" class="page">
+                    <h2 class="font-semibold mb-5">Audit Logs</h2>
+                    <div class="card rounded-2xl overflow-hidden">
+                        <table class="w-full table text-sm">
+                            <thead>
+                                <tr class="text-left">
+                                    <th class="px-4 py-3">Time</th>
+                                    <th class="px-4 py-3">Actor</th>
+                                    <th class="px-4 py-3">Action</th>
+                                    <th class="px-4 py-3">Target</th>
+                                    <th class="px-4 py-3">IP</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="px-4 py-3 text-xs">2026-08-30 16:22</td>
+                                    <td class="px-4 py-3">SuperAdmin</td>
+                                    <td class="px-4 py-3">ECONOMIC_SETTING_CHANGE</td>
+                                    <td class="px-4 py-3">OWNER_FEE_PERCENT</td>
+                                    <td class="px-4 py-3 text-xs">203.0.113.x</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3 text-xs">2026-08-30 15:41</td>
+                                    <td class="px-4 py-3">System</td>
+                                    <td class="px-4 py-3">AUCTION_SETTLED</td>
+                                    <td class="px-4 py-3">Hall #1</td>
+                                    <td class="px-4 py-3 text-xs">—</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ROLES -->
+                <div id="page-roles" class="page">
+                    <h2 class="font-semibold mb-5">Roles & Permissions (RBAC)</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="card rounded-2xl p-5">
+                            <div class="font-semibold mb-2">Super Admin</div>
+                            <div class="text-xs text-white/40">Full access · Cannot be demoted by lower roles</div>
+                        </div>
+                        <div class="card rounded-2xl p-5">
+                            <div class="font-semibold mb-2">Finance</div>
+                            <div class="text-xs text-white/40">Ledgers · Packages · Economics (read/write limited)</div>
+                        </div>
+                        <div class="card rounded-2xl p-5">
+                            <div class="font-semibold mb-2">Support</div>
+                            <div class="text-xs text-white/40">User view · Notes · Suspend (non-financial)</div>
+                        </div>
+                        <div class="card rounded-2xl p-5">
+                            <div class="font-semibold mb-2">Auditor</div>
+                            <div class="text-xs text-white/40">Read-only access to all logs and ledgers</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SETTINGS -->
+                <div id="page-settings" class="page">
+                    <h2 class="font-semibold mb-5">System Settings</h2>
+                    <div class="card rounded-2xl p-6 max-w-xl space-y-4 text-sm">
+                        <div class="flex justify-between"><span>Project Timezone</span><span class="text-white/60">UTC</span></div>
+                        <div class="flex justify-between"><span>Launch Mode</span><span class="badge-ok text-xs px-2 py-0.5 rounded">Active</span></div>
+                        <div class="flex justify-between"><span>Maintenance Mode</span><span class="text-white/40">Off</span></div>
+                        <div class="flex justify-between"><span>Telegram Bot Token</span><span class="text-white/40">•••••••• (env)</span></div>
+                        <div class="pt-4 text-xs text-white/30">All secrets are loaded from environment variables. Never stored in frontend.</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function doLogin() {
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('tfa-screen').classList.remove('hidden');
+        }
+        function verify2FA() {
+            document.getElementById('tfa-screen').classList.add('hidden');
+            document.getElementById('admin-app').classList.remove('hidden');
+        }
+        function logoutAdmin() {
+            document.getElementById('admin-app').classList.add('hidden');
+            document.getElementById('login-screen').classList.remove('hidden');
+        }
+        function showPage(id) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById('page-' + id).classList.add('active');
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.querySelector(`.nav-item[data-page="${id}"]`)?.classList.add('active');
+            const titles = {
+                dashboard: 'Dashboard', users: 'User Management', missions: 'Missions',
+                auctions: 'Auction Halls', packages: 'Packages', shop: 'Shop',
+                ledger: 'Ledgers', economics: 'Economics', binary: 'Binary Tree',
+                fraud: 'Fraud Center', audit: 'Audit Logs', roles: 'Roles & Permissions',
+                settings: 'System Settings'
+            };
+            document.getElementById('page-title').textContent = titles[id] || id;
+        }
+        function setLang(lang) {
+            document.getElementById('html-root').lang = lang;
+            document.getElementById('html-root').dir = (lang === 'fa' || lang === 'ar') ? 'rtl' : 'ltr';
+        }
+        console.log('%cGENESIS Admin Portal · UI Skeleton', 'color:#00f5ff');
+        console.log('All privileged actions must be authorized by backend RBAC. This is UI only.');
+    </script>
+</body>
+</html>

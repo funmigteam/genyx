@@ -1,0 +1,30 @@
+.profile-settings.entry-welcome{padding:24px;max-width:640px;margin:18px auto;border:1px solid #3a5973;border-radius:24px;background:radial-gradient(ellipse at 100% 0,#44316b66,transparent 55%),linear-gradient(145deg,#122739,#0d1728);box-shadow:0 18px 45px #0003;color:#eef6ff}
+.entry-welcome .entry-heading{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.entry-welcome .entry-mark{display:grid;place-items:center;flex:0 0 48px;height:48px;background:linear-gradient(135deg,#38d9e8,#ad8bff);border-radius:15px;font-size:25px;font-weight:900;color:#10233a;box-shadow:0 6px 20px #43d8dc20}
+.entry-welcome .entry-heading small{font-size:9px;letter-spacing:.13em;color:#89e9e3;font-weight:700}
+.entry-welcome .entry-heading h2{font-size:22px;line-height:1.25;margin:5px 0 0;letter-spacing:-.02em}
+.entry-welcome .entry-intro{font-size:14px;line-height:1.6;color:#b7c7dc;margin:0 0 24px}
+.entry-welcome .entry-step{display:flex;align-items:center;gap:12px;margin:20px 0 12px}
+.entry-welcome .entry-step>span{display:grid;place-items:center;flex:0 0 30px;height:30px;border-radius:10px;background:#223750;border:1px solid #42627c;color:#84e4ee;font-size:11px;font-weight:800}
+.entry-welcome .entry-step h3{font-size:15px;margin:0 0 4px;color:#f0f4ff}.entry-welcome .entry-step p{font-size:12px;color:#aabed5;margin:0;line-height:1.5}
+.entry-welcome .entry-channels{display:grid;gap:10px}
+.entry-welcome a.entry-channel{display:flex;align-items:center;gap:10px;padding:14px 12px;border:1px solid #396a75;background:linear-gradient(110deg,#163941,#19293e);border-radius:14px;color:#eafcff;text-decoration:none;min-height:64px;transition:border-color .2s,background .2s}
+.entry-welcome a.entry-channel:hover{border-color:#76dbe1;background:#20414d}
+.entry-welcome .entry-channel-icon{color:#85eaf1;font-size:23px}
+.entry-welcome .entry-channel-name{flex:1;min-width:0;font-size:14px;font-weight:700;overflow-wrap:anywhere}
+.entry-welcome .entry-channel-name small{display:block;font-size:11px;font-weight:400;color:#adc5d7;margin-top:4px}
+.entry-welcome .entry-badge{padding:6px 9px;border-radius:7px;background:#283c58;color:#c7e5ff;font-size:11px;font-weight:700;white-space:nowrap}
+.entry-welcome .entry-badge.joined{background:#184e43;color:#8af0cb;border:1px solid #327a64}
+.entry-welcome .terms-consent{margin:12px 0 20px;padding:12px 14px;border:1px solid #5a5479;background:#22233b66;border-radius:14px}
+.entry-welcome .terms-consent summary{min-height:44px;cursor:pointer;font-size:13px;font-weight:700;color:#d9c7ff;padding:10px 0;box-sizing:border-box}
+.entry-welcome .terms-consent details>p{font-size:13px;line-height:1.7;color:#c0cddd;max-height:280px;overflow:auto}
+.entry-welcome .terms-consent label{font-size:13px;line-height:1.55;color:#dbe7f3;padding:10px 0;cursor:pointer}
+.entry-welcome .terms-consent input[type=checkbox]{accent-color:#56dfc2}
+.entry-welcome .terms-consent p[role=status]:empty,.entry-welcome>p[role=status]:empty{display:none}
+.profile-settings.entry-welcome button.entry-continue{display:flex;justify-content:center;align-items:center;width:100%;min-height:48px;padding:13px 16px;border:1px solid #69e6dc;border-radius:13px;background:linear-gradient(110deg,#3cd3ef,#55e1b5);color:#092433;font-size:15px;font-weight:800;text-align:center;cursor:pointer;box-shadow:0 6px 18px #31cbd522}
+.profile-settings.entry-welcome button.entry-continue:hover:not(:disabled){filter:brightness(1.08)}
+.profile-settings.entry-welcome button.entry-continue:disabled{background:#253c4b;color:#a2b6c5;border-color:#435d70;cursor:not-allowed;box-shadow:none}
+.entry-welcome>p[role=status]{font-size:13px;line-height:1.6;color:#f6d3a3;background:#3d302d;border-radius:10px;padding:10px;margin-bottom:0}
+.entry-welcome :is(a,button,input,summary):focus-visible{outline:3px solid #ffe096;outline-offset:3px}
+@media(max-width:480px){.profile-settings.entry-welcome{padding:18px 16px;border-radius:20px}.entry-welcome .entry-heading{gap:10px}.entry-welcome .entry-heading h2{font-size:20px}.entry-welcome .entry-heading small{font-size:8px}.entry-welcome .entry-intro{margin-bottom:18px}}
+@media(prefers-reduced-motion:reduce){.entry-welcome a.entry-channel{transition:none}}

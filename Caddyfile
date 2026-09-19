@@ -1,0 +1,17 @@
+{
+  email admin@smartgenyx.com
+}
+
+www.smartgenyx.com {
+  redir https://smartgenyx.com{uri} permanent
+}
+
+smartgenyx.com {
+  encode zstd gzip
+  reverse_proxy web:3000
+}
+
+api.smartgenyx.com {
+  encode zstd gzip
+  reverse_proxy api:3001
+}

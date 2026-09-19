@@ -1,0 +1,7 @@
+'use client';
+import {useEffect,useState} from 'react';
+export function Leaderboard({request}:{request:<T>(path:string,init?:RequestInit)=>Promise<T>}){
+ const [mode,setMode]=useState('individual'),[data,setData]=useState<{rows:{rank:string;name:string;amount?:string;members?:string}[];me:{rank:string}|null}|null>(null),[error,setError]=useState('');
+ useEffect(()=>{let live=true;setData(null);setError('');const load=()=>request<NonNullable<typeof data>>(mode==='team'?'/v1/team-leaderboard':'/v1/commission-leaderboard').then(r=>{if(live)setData(r);}).catch(e=>{if(live)setError(e.message);});void load();const timer=setInterval(load,30000);return()=>{live=false;clearInterval(timer);};},[mode]);
+ return <section className="member-panel"><h2>Leaderboard</h2><div className="shop-categories">{['individual','team'].map(m=><button key={m} aria-pressed={mode===m} onClick={()=>setMode(m)}>{m==='team'?'Teams':'Individuals'}</button>)}</div><p>{mode==='team'?'Ranked by total referral team members.':'Ranked by credited binary commissions in USDT.'}</p><h3>Your rank: {data?.me?.rank??'—'}</h3><p role="status">{error||(!data?'Loading rankings…':'')}</p>{data?.rows.map((r,i)=><article key={i} style={{display:'flex',justifyContent:'space-between',gap:12,borderColor:i<3?'#ae9054':undefined}}><strong>#{r.rank} · {r.name}</strong><span>{mode==='team'?`${r.members} members`:`${(Number(r.amount??0)/1000000).toLocaleString('en-US')} USDT`}</span></article>)}</section>;
+}

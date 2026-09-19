@@ -1,0 +1,51 @@
+/* Keep Home progress cards compact without changing other page cards. */
+.lion-app .shop-categories{display:flex;gap:8px;overflow:auto;padding:8px 0;scrollbar-width:thin}
+.lion-app .shop-categories button{white-space:nowrap;min-height:44px;padding:10px 14px;border:1px solid #435b77;border-radius:12px;background:#162a3e;color:#d6eaf8;cursor:pointer}
+.lion-app .shop-categories button[aria-pressed=true]{background:#20594f;color:#a4ffe2;border-color:#63dcb8}
+.lion-app .packs{display:flex!important;gap:14px;overflow-x:auto;scroll-snap-type:x proximity;padding:8px 0 16px}
+.lion-app .packs>article{display:block;flex:0 0 min(280px,82vw);scroll-snap-align:start;box-sizing:border-box;min-width:0}
+.lion-app .shop-actions button{background:#51dbaa;color:#0c2b26;border-color:#78efc5;min-height:44px;font-weight:800}
+.lion-app .profile-stats.profile-mini-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0}
+.lion-app .profile-mini-stats>.metric,.lion-app .profile-mini-stats>article{min-width:0;padding:12px;border:1px solid #37546c;border-radius:13px;background:linear-gradient(125deg,#183345,#111e30);overflow-wrap:anywhere}
+.lion-app .profile-mini-stats>.metric>b,.lion-app .profile-mini-stats>article>strong{display:block;font-size:18px;line-height:1.4;margin:8px 0 0;color:#87e9df}
+.lion-app .profile-mini-stats small{font-size:11px;color:#b9cce0}
+.lion-app .profile-mini-stats .metric>svg{display:none}
+.lion-app .profile-mini-stats.earning-totals{grid-template-columns:repeat(2,minmax(0,1fr))}
+.lion-app .earning-totals>article:nth-child(2){background:linear-gradient(125deg,#34284e,#111e30);border-color:#65507f}
+.lion-app .earning-totals p{font-size:11px;color:#b9cce0;margin:6px 0 0;line-height:1.5}
+@media(max-width:650px){.lion-app .profile-stats.profile-mini-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.lion-app .profile-mini-stats>.metric>b,.lion-app .profile-mini-stats>article>strong{font-size:16px}}
+.lion-app .home-referrals{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}
+.home-referrals>div{padding:14px;border:1px solid #3b777b;border-radius:14px;background:linear-gradient(120deg,#154047,#112838)}
+.home-referrals>div:nth-child(2){border-color:#765999;background:linear-gradient(120deg,#382751,#192a41)}
+.home-referrals small{font-size:10px;letter-spacing:.08em;color:#bcd8e4}.home-referrals strong{display:block;font-size:24px;color:#8bf3df;margin-top:6px}
+.home-referrals>button{grid-column:1/-1;min-height:44px;border-radius:12px;background:#173d49;border:1px solid #43828d;color:#9af1f2;font-weight:700;cursor:pointer}
+.home-referrals>p{grid-column:1/-1;margin:0;font-size:12px;color:#b9d7e7}
+.lion-app .hero-grid>.season-card{background:linear-gradient(125deg,#12383e,#111e30);border-color:#367a7e}
+.lion-app .hero-grid>.lion-card{background:linear-gradient(125deg,#302345,#131f34);border-color:#74568d}
+.lion-app .hero-grid .lion-card .track i{background:linear-gradient(90deg,#9874ee,#e0a6ff)}
+.lion-app .task-list article{border-left:3px solid #50d8dd;background:linear-gradient(120deg,#132f3d,#111d30)}
+.lion-app .task-list article:nth-child(3n+2){border-left-color:#bd8ffa;background:linear-gradient(120deg,#29243f,#111d30)}
+.lion-app .task-list article:nth-child(3n){border-left-color:#f0c16c;background:linear-gradient(120deg,#332d2c,#111d30)}
+.lion-app .task-list article.claimed{border-color:#59dca8;background:linear-gradient(120deg,#163a32,#111d30)}
+.financial-flows article.season-gift-card{border-color:#897049;background:radial-gradient(ellipse at 100% 0,#65443280,transparent 65%),linear-gradient(120deg,#292139,#12283b)}
+.financial-flows .season-gift-card h3{color:#ffdc8d}.financial-flows .season-gift-card progress{accent-color:#bb91f7}
+.financial-flows .season-gift-card button{border-color:#9e8653;background:#ffda8c;color:#251d0c;font-weight:700}
+.lion-app .hero-grid{gap:12px;margin-top:16px;align-items:start}
+.lion-app .hero-grid>.season-card,.lion-app .hero-grid>.lion-card{padding:16px 18px;border-radius:16px;min-width:0}
+.lion-app .hero-grid .season-card>span,.lion-app .hero-grid .lion-card>span{display:flex;align-items:center;gap:8px;font-size:10px;min-height:28px}
+.lion-app .hero-grid .season-card h2{font-size:17px;line-height:1.3;margin:4px 0 12px}
+.lion-app .hero-grid .season-track{gap:10px}
+.lion-app .hero-grid .season-track b{font-size:18px}
+.lion-app .hero-grid .track{height:5px}
+.lion-app .hero-grid .season-card p{font-size:11px;line-height:1.45;margin-top:8px}
+.lion-app .hero-grid .lion-card>b{font-size:24px;line-height:1.3;margin:5px 0 10px}
+.lion-app .hero-grid .lion-card>b small{font-size:11px}
+.lion-app .hero-grid .lion-card>button{min-height:44px;margin:4px 0 -6px;font-size:13px;gap:8px}
+.lion-app .hero-grid .lion-card>span .info-trigger{display:inline-flex;flex:none;width:32px;height:32px;min-width:32px;min-height:32px;padding:4px;margin:0;border:1px solid #7090ac;border-radius:50%;background:#12283c;color:#79ecf5;justify-content:center;font:600 13px sans-serif}
+@media(max-width:650px){
+ .lion-app .hero-grid{gap:10px;margin-top:12px}
+ .lion-app .hero-grid>.season-card,.lion-app .hero-grid>.lion-card{padding:12px 14px;border-radius:14px}
+ .lion-app .hero-grid .season-card h2{font-size:16px;margin:3px 0 9px}
+ .lion-app .hero-grid .season-card p{font-size:11px;margin-top:6px}
+ .lion-app .hero-grid .lion-card>b{font-size:22px;margin:2px 0 8px}
+}

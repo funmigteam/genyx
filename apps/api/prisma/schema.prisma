@@ -1,0 +1,590 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  SUPER_ADMIN
+  FINANCE_ADMIN
+  SUPPORT_ADMIN
+  CONTENT_ADMIN
+  AUDITOR
+  DEVELOPER
+}
+enum AccountType {
+  AVAILABLE
+  HOLD
+  RESERVE
+  REVENUE
+  EXPENSE
+}
+enum LedgerKind {
+  DEPOSIT
+  PACKAGE_PAYMENT
+  GEN_CREDIT
+  REFERRAL_COMMISSION
+  BINARY_COMMISSION
+  DAILY_GIFT
+  SEASON_REWARD
+  LOTTERY_ENTRY
+  LOTTERY_PRIZE
+  WITHDRAWAL
+  FEE
+  ADJUSTMENT
+}
+enum WithdrawalStatus {
+  REQUESTED
+  REVIEWING
+  APPROVED
+  REJECTED
+  PAID
+  CANCELLED
+}
+enum PaymentStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+  EXPIRED
+}
+enum PayoutJobStatus {
+  QUEUED
+  SENDING
+  SUBMITTED
+  CONFIRMED
+  MANUAL_REVIEW
+}
+
+enum TaskKind {
+  CHANNEL_JOIN
+  EXTERNAL_LINK
+  DAILY_CHECKIN
+  MANUAL_REVIEW
+  XP_REACHED
+  LEVEL_REACHED
+  GAME_PLAYED
+  BINARY_AMOUNT
+  SHOP_BOOST_COUNT
+  SHOP_PROFILE_COUNT
+  SHOP_TIME_COUNT
+  DIRECT_COUNT
+  MAX_CAP_REACHED
+  USED_CAP_REACHED
+  SEASON_REACHED
+  CYCLES_REACHED
+  VOUCHERS_REACHED
+  GEN_SPENT
+  DAY_REACHED
+}
+
+enum TaskStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ShopPaymentMethod {
+  GEN
+  VOUCHER
+}
+
+enum PurchaseStatus {
+  COMPLETED
+  CANCELLED
+}
+
+enum LotteryStatus {
+  DRAFT
+  OPEN
+  DRAWN
+  CANCELLED
+}
+
+model User {
+  id String @id @default(cuid())
+  telegramId BigInt @unique
+  username String?
+  firstName String?
+  displayName String?
+  photoUrl String?
+  language String @default("en")
+  languageChosen Boolean @default(false)
+  publicProfile Boolean @default(false)
+  avatarStyle String @default("lion")
+  referralCode String? @unique
+  activePackageCode String?
+  packageActivatedAt DateTime?
+  xp BigInt @default(0)
+  genSpent BigInt @default(0)
+  vouchers Int @default(0)
+  totalDeposited BigInt @default(0)
+  totalWithdrawn BigInt @default(0)
+  maxCap BigInt @default(0)
+  capConsumed BigInt @default(0)
+  botStarts Int @default(0)
+  lastStartedAt DateTime?
+  role UserRole @default(USER)
+  referredById String?
+  referredBy User? @relation("Referral", fields: [referredById], references: [id])
+  referrals User[] @relation("Referral")
+  wallet Wallet?
+  accounts LedgerAccount[]
+  withdrawals Withdrawal[] @relation("WithdrawalUser")
+  auditEvents AuditEvent[]
+  taskClaims TaskClaim[]
+  shopPurchases ShopPurchase[]
+  channelMemberships ChannelMembership[]
+  lotteryEntries LotteryEntry[]
+  auctionEntryPasses AuctionEntryPass[]
+  referralCommissions ReferralCommission[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BinaryPosition {
+  userId String @id
+  parentId String?
+  side String?
+  leftVolume BigInt @default(0)
+  rightVolume BigInt @default(0)
+  leftLifetime BigInt @default(0)
+  rightLifetime BigInt @default(0)
+  slots BigInt @default(0)
+  settlements BinaryReceipt[]
+  @@unique([parentId, side])
+}
+
+model BinaryVolume {
+  id String @id @default(cuid())
+  paymentId String
+  userId String
+  side String
+  amount BigInt
+  createdAt DateTime @default(now())
+  @@unique([paymentId, userId])
+}
+
+model BinaryReceipt {
+  id String @id @default(cuid())
+  userId String
+  position BinaryPosition @relation(fields: [userId], references: [userId])
+  day String
+  slots BigInt
+  vouchers Int
+  credited BigInt
+  retained BigInt
+  createdAt DateTime @default(now())
+  @@index([userId, day])
+}
+
+model Task {
+  id String @id @default(cuid())
+  title String
+  description String?
+  kind TaskKind @default(EXTERNAL_LINK)
+  actionUrl String?
+  channelChatId String?
+  targetValue Int @default(1)
+  dayNumber Int?
+  gameKey String?
+  rewardGen Int @default(0)
+  rewardXp Int @default(0)
+  rewardUsdt Int @default(0)
+  isDaily Boolean @default(false)
+  startsAt DateTime
+  endsAt DateTime?
+  status TaskStatus @default(DRAFT)
+  createdById String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  claims TaskClaim[]
+  @@index([status, startsAt])
+}
+
+model GameActivity {
+  id String @id @default(cuid())
+  eventKey String @unique
+  userId String
+  gameKey String
+  rounds Int
+  createdAt DateTime @default(now())
+  @@index([userId, gameKey, createdAt])
+}
+
+model SupportTicket {
+  id String @id @default(cuid())
+  userId String
+  subject String
+  body String
+  reply String?
+  status String @default("OPEN")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([userId, createdAt])
+}
+
+model UserNotification {
+  id String @id @default(cuid())
+  userId String
+  eventKey String @unique
+  title String
+  body String
+  readAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId, createdAt])
+}
+
+model SeasonEnrollment {
+  id String @id @default(cuid())
+  userId String
+  season Int
+  startedAt DateTime
+  deadline DateTime
+  currentDay Int @default(1)
+  nextGift BigInt @default(0)
+  graceUsed Int @default(0)
+  completedDays Int @default(0)
+  endedAt DateTime?
+  days SeasonDay[]
+  @@unique([userId, season])
+}
+
+model SeasonDay {
+  id String @id @default(cuid())
+  enrollmentId String
+  enrollment SeasonEnrollment @relation(fields: [enrollmentId], references: [id])
+  number Int
+  opensAt DateTime
+  deadline DateTime
+  requiredTaskIds Json
+  gift BigInt
+  giftGen Int @default(0)
+  giftXp Int @default(0)
+  claimedAt DateTime?
+  graceAt DateTime?
+  closedAt DateTime?
+  @@unique([enrollmentId, number])
+  @@index([closedAt, deadline])
+}
+
+model ShopItem {
+  id String @id @default(cuid())
+  sku String @unique
+  title String
+  description String?
+  category String @default("BOOST")
+  genPrice Int @default(0)
+  voucherPrice Int @default(0)
+  durationMinutes Int @default(0)
+  imageKey String @default("spark")
+  active Boolean @default(true)
+  sortOrder Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  purchases ShopPurchase[]
+}
+
+model ShopPurchase {
+  id String @id @default(cuid())
+  userId String
+  itemId String
+  method ShopPaymentMethod
+  genSpent Int @default(0)
+  vouchersSpent Int @default(0)
+  status PurchaseStatus @default(COMPLETED)
+  activeUntil DateTime?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item ShopItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  @@index([userId, createdAt])
+}
+
+model RequiredChannel {
+  id String @id @default(cuid())
+  chatId String @unique
+  title String
+  inviteUrl String
+  active Boolean @default(true)
+  sortOrder Int @default(0)
+  createdAt DateTime @default(now())
+  memberships ChannelMembership[]
+}
+
+model ChannelMembership {
+  id String @id @default(cuid())
+  userId String
+  channelId String
+  verifiedAt DateTime?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel RequiredChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  @@unique([userId, channelId])
+}
+
+model TaskClaim {
+  id String @id @default(cuid())
+  taskId String
+  userId String
+  claimKey String @default("once")
+  verifiedAt DateTime?
+  quotedGen Int?
+  quotedXp Int?
+  quotedUsdt Int?
+  settledAt DateTime?
+  createdAt DateTime @default(now())
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([taskId, userId, claimKey])
+  @@index([userId, createdAt])
+}
+
+model Wallet {
+  id String @id @default(cuid())
+  userId String @unique
+  address String @unique
+  verifiedAt DateTime?
+  lastChangedAt DateTime?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model WalletChallenge {
+  id String @id @default(cuid())
+  userId String
+  nonce String @unique
+  address String
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId, expiresAt])
+}
+
+model LotteryRound {
+  id String @id @default(cuid())
+  title String
+  description String?
+  entryGen Int
+  prizeGen Int
+  prizeUsdt BigInt @default(0)
+  startsAt DateTime
+  endsAt DateTime
+  status LotteryStatus @default(DRAFT)
+  winnerEntryId String? @unique
+  randomProof String?
+  drawnAt DateTime?
+  createdById String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  entries LotteryEntry[]
+  @@index([status, startsAt, endsAt])
+}
+
+model LotteryEntry {
+  id String @id @default(cuid())
+  roundId String
+  userId String
+  createdAt DateTime @default(now())
+  round LotteryRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([roundId, userId])
+  @@index([userId, createdAt])
+}
+
+model ReferralCommission {
+  id String @id @default(cuid())
+  paymentId String
+  recipientId String
+  sourceUserId String
+  level Int
+  genAmount Int
+  createdAt DateTime @default(now())
+  recipient User @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  @@unique([paymentId, recipientId])
+  @@index([recipientId, createdAt])
+  @@index([sourceUserId, createdAt])
+}
+
+model LedgerAccount {
+  id String @id @default(cuid())
+  userId String?
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code String @unique
+  currency String
+  type AccountType
+  createdAt DateTime @default(now())
+  entries LedgerEntry[]
+}
+
+model LedgerTransaction {
+  id String @id @default(cuid())
+  idempotencyKey String @unique
+  kind LedgerKind
+  referenceType String
+  referenceId String
+  metadata Json?
+  createdAt DateTime @default(now())
+  entries LedgerEntry[]
+}
+
+model LedgerEntry {
+  id String @id @default(cuid())
+  transactionId String
+  accountId String
+  // Atomic integer units: USDC uses 6 decimals; GEN uses 0 unless configured otherwise.
+  debit BigInt @default(0)
+  credit BigInt @default(0)
+  transaction LedgerTransaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  account LedgerAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  @@index([accountId])
+}
+
+model Payment {
+  id String @id @default(cuid())
+  userId String
+  packageCode String
+  purpose String @default("PACKAGE")
+  seasonNumber Int?
+  auctionAwardId String? @unique
+  expectedAmount BigInt
+  quotedGen BigInt?
+  quotedOwner BigInt?
+  quotedBinary BigInt?
+  quotedReward BigInt?
+  quotedMaxCap BigInt?
+  currency String @default("USDC")
+  chainTxHash String? @unique
+  status PaymentStatus @default(PENDING)
+  expiresAt DateTime
+  confirmedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId, status])
+}
+
+model Auction {
+  id String @id @default(cuid())
+  title String
+  bidGen Int
+  prizeUsdt BigInt
+  prizeGen Int
+  prizeXp Int
+  series String?
+  round Int?
+  entryUsdt BigInt @default(0)
+  autoAdvance Boolean @default(false)
+  endsAt DateTime
+  remainingSeconds Int @default(86400)
+  status String @default("OPEN")
+  candidates Json?
+  bids AuctionBid[]
+  awards AuctionAward[]
+  createdAt DateTime @default(now())
+  @@index([series, status])
+}
+model AuctionEntryPass {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  series String
+  entryUsdt BigInt
+  createdAt DateTime @default(now())
+  @@unique([userId, series])
+  @@index([series])
+}
+model AuctionBid {
+  id String @id @default(cuid())
+  auctionId String
+  auction Auction @relation(fields: [auctionId], references: [id])
+  userId String
+  cents BigInt
+  requestKey String @unique
+  createdAt DateTime @default(now())
+  @@index([auctionId, cents])
+}
+model AuctionAward {
+  id String @id @default(cuid())
+  auctionId String
+  auction Auction @relation(fields: [auctionId], references: [id])
+  userId String
+  cents BigInt
+  prizeUsdt BigInt
+  prizeGen Int
+  prizeXp Int
+  expiresAt DateTime
+  status String @default("OFFERED")
+  @@index([status, expiresAt])
+}
+
+model Withdrawal {
+  id String @id @default(cuid())
+  userId String
+  amount BigInt
+  fee BigInt
+  netAmount BigInt
+  currency String @default("USDC")
+  destination String
+  status WithdrawalStatus @default(REQUESTED)
+  idempotencyKey String @unique
+  reviewedById String?
+  txHash String? @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation("WithdrawalUser", fields: [userId], references: [id], onDelete: Restrict)
+  payoutJob PayoutJob?
+  @@index([userId, createdAt])
+}
+
+model PayoutJob {
+  id String @id @default(cuid())
+  withdrawalId String @unique
+  status PayoutJobStatus @default(QUEUED)
+  externalMessageHash String? @unique
+  chainTxHash String? @unique
+  attempts Int @default(0)
+  outboxVersion Int?
+  signedBoc String?
+  validUntil DateTime?
+  lastError String?
+  submittedAt DateTime?
+  confirmedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  withdrawal Withdrawal @relation(fields: [withdrawalId], references: [id], onDelete: Restrict)
+  @@index([status, updatedAt])
+}
+
+model RewardReceipt {
+  id String @id @default(cuid())
+  idempotencyKey String @unique
+  userId String
+  pool String
+  requested BigInt
+  credited BigInt
+  retained BigInt
+  referenceType String
+  referenceId String
+  createdAt DateTime @default(now())
+  @@index([userId, createdAt])
+}
+
+model SystemSetting {
+  key String @id
+  value Json
+  updatedAt DateTime @updatedAt
+}
+
+model AuditEvent {
+  id String @id @default(cuid())
+  actorId String?
+  action String
+  entityType String
+  entityId String
+  before Json?
+  after Json?
+  ip String?
+  createdAt DateTime @default(now())
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  @@index([entityType, entityId])
+}

@@ -1,0 +1,12 @@
+{
+  "name": "genyx-platform",
+  "private": true,
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "dev:api": "npm --workspace @genyx/api run dev",
+    "dev:web": "npm --workspace @genyx/web run dev",
+    "build": "npm --workspaces run build",
+    "test": "npm --workspaces run test",
+    "db:generate": "npm --workspace @genyx/api run prisma:generate"
+  }
+}

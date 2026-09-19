@@ -1,0 +1,5 @@
+.lottery-grid button:not(:disabled) { border-color: #527088; background: #13253a; color: #d8eeff; font-weight: 700; }
+.lottery-grid button:disabled { cursor: not-allowed; }
+.tx-hash { display: block; margin: 14px 0; color: #c6d6e5; font-size: 11px; font-weight: 700; }
+.tx-hash input { display: block; width: 100%; margin-top: 7px; border: 1px solid #52677e; border-radius: 9px; background: #091321; color: #f4f8ff; padding: 11px; font: inherit; }
+.form-error { color: #ffb1a5 !important; margin: 12px 0 0 !important; }

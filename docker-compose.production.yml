@@ -1,0 +1,65 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: genyx
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: genyx
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U genyx -d genyx"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    mem_limit: 512m
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 96mb --maxmemory-policy noeviction
+    volumes: [redis_data:/data]
+    mem_limit: 128m
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    env_file: .env.production
+    volumes:
+      # `/dev/null` keeps automation disabled safely until the operator creates
+      # a root-only mnemonic file and enables the worker in .env.production.
+      - ${PAYOUT_SECRET_HOST_PATH:-/dev/null}:/run/secrets/genyx_payout_mnemonic:ro
+    # The repository is being deployed for the first time and has no baseline
+    # migration history yet. db push initializes the schema once; add versioned
+    # migration baselines before the next production schema change.
+    command: sh -c "npx prisma db push && node dist/server.js"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+    mem_limit: 400m
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://api.smartgenyx.com
+    restart: unless-stopped
+    environment:
+      NODE_OPTIONS: --max-old-space-size=384
+    depends_on: [api]
+    mem_limit: 550m
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [web, api]
+    mem_limit: 128m
+volumes:
+  postgres_data:
+  redis_data:
+  caddy_data:
+  caddy_config:
