@@ -55,6 +55,29 @@ export async function deleteUnusedAuction(actorId: string, auctionId: string) {
     return { ok: true };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
+export async function purchaseAuctionPackage(userId: string, series: 'A' | 'B' | 'C', priceUsdt: bigint, requestKey: string) {
+  if (priceUsdt < 0n) throw new Error('Invalid lottery package price');
+  return prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
+    const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
+    if (!user.activePackageCode) throw new Error('Active package required');
+    const available = await tx.ledgerAccount.upsert({ where: { code: `USER:${userId}:USDC:AVAILABLE` }, create: { userId, code: `USER:${userId}:USDC:AVAILABLE`, currency: 'USDC', type: 'AVAILABLE' }, update: {} });
+    await tx.$queryRaw`SELECT id FROM "LedgerAccount" WHERE id = ${available.id} FOR UPDATE`;
+    const key = `auction-package:${requestKey}`;
+    const replay = await tx.ledgerTransaction.findUnique({ where: { idempotencyKey: key } });
+    if (replay) {
+      const pass = await tx.auctionEntryPass.findUniqueOrThrow({ where: { userId_series: { userId, series } } });
+      return { ...pass, replayed: true };
+    }
+    const balance = await tx.ledgerEntry.aggregate({ where: { accountId: available.id }, _sum: { debit: true, credit: true } });
+    if ((balance._sum.credit ?? 0n) - (balance._sum.debit ?? 0n) < priceUsdt) throw new Error('Insufficient USDT in your in-app wallet for this lottery package');
+    const reward = await account(tx, 'SYSTEM:USDC:REWARD');
+    if (priceUsdt > 0n) await postLedger({ idempotencyKey: key, kind: LedgerKind.LOTTERY_ENTRY, referenceType: 'AuctionEntryPackage', referenceId: `${userId}:${series}:${requestKey}`, postings: [{ accountId: available.id, debit: priceUsdt }, { accountId: reward.id, credit: priceUsdt }] }, tx);
+    const pass = await tx.auctionEntryPass.upsert({ where: { userId_series: { userId, series } }, create: { userId, series, entryUsdt: priceUsdt, roomsRemaining: 2 }, update: { entryUsdt: priceUsdt, roomsRemaining: { increment: 2 } } });
+    await tx.auditEvent.create({ data: { actorId: userId, action: 'AUCTION_PACKAGE_PURCHASED', entityType: 'AuctionEntryPass', entityId: pass.id, after: { series, priceUsdt: String(priceUsdt), roomsAdded: 2, roomsRemaining: pass.roomsRemaining } } });
+    return { ...pass, replayed: false };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
 export async function placeAuctionBid(userId: string, auctionId: string, cents: bigint, requestKey: string, now = new Date()) {
   if (cents < 1n || cents > 1000000000000n) throw new Error('Invalid bid');
   return prisma.$transaction(async tx => {
@@ -71,7 +94,12 @@ export async function placeAuctionBid(userId: string, auctionId: string, cents: 
     if (!user.activePackageCode) throw new Error('Active package required');
     let entryRewardGen = 0n;
     const entryScope = auction.series ?? `ROOM:${auction.id}`;
-    if (auction.entryUsdt > 0n) {
+    const existingRoomBid = await tx.auctionBid.count({ where: { auctionId, userId } });
+    if (auction.series && ['A', 'B', 'C'].includes(auction.series)) {
+      const pass = await tx.auctionEntryPass.findUnique({ where: { userId_series: { userId, series: auction.series } } });
+      if (!pass || pass.roomsRemaining <= 0) throw new Error(`Purchase the ${auction.series} lottery package to enter this hall`);
+      if (existingRoomBid === 0) await tx.auctionEntryPass.update({ where: { id: pass.id }, data: { roomsRemaining: { decrement: 1 } } });
+    } else if (auction.entryUsdt > 0n) {
       const pass = await tx.auctionEntryPass.findUnique({ where: { userId_series: { userId, series: entryScope } } });
       if (!pass) {
         const availableUsdt = await tx.ledgerAccount.findUniqueOrThrow({ where: { code: `USER:${userId}:USDC:AVAILABLE` } });
@@ -203,6 +231,14 @@ export async function claimAuctionAward(userId: string, awardId: string, now = n
     await closeIfFinished(tx, award.auctionId);
     return { awardId: award.id, status: 'PAID', chargedUsdt: winningBid, creditedUsdt: award.prizeUsdt, netUsdt: award.prizeUsdt - winningBid };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
+export async function revealAuctionAward(userId: string, awardId: string, now = new Date()) {
+  return prisma.$transaction(async tx => {
+    const award = await tx.auctionAward.findFirstOrThrow({ where: { id: awardId, userId } });
+    if (award.status !== 'PAID') throw new Error('Prize is not available to reveal');
+    const result = await tx.auctionAward.updateMany({ where: { id: award.id, userId, revealedAt: null }, data: { revealedAt: now } });
+    return { revealed: result.count === 1 };
+  });
 }
 export async function confirmAuctionPayment(tx: Prisma.TransactionClient, paymentId: string, now = new Date()) {
   await tx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${paymentId} FOR UPDATE`;

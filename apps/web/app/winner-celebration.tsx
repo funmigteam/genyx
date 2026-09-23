@@ -15,7 +15,7 @@ export function WinnerCelebration({ award, close }: { award: { cents: string; pr
     <div className="winner-postcard">
       <span>LOTTERY REWARD</span>
       <strong>+ {usdt} USDT</strong>
-      <p>{award.prizeGen > 0 ? `+ ${award.prizeGen} GEN` : ''}{award.prizeGen > 0 && award.prizeXp > 0 ? ' · ' : ''}{award.prizeXp > 0 ? `+ ${award.prizeXp} XP` : ''}</p>
+      {(award.prizeGen > 0 || award.prizeXp > 0) && <div className="winner-bonus-rewards">{award.prizeGen > 0 && <span className="winner-gen-reward">✦ + {award.prizeGen} GEN</span>}{award.prizeXp > 0 && <span className="winner-xp-reward">⚡ + {award.prizeXp} XP</span>}</div>}
       <small>{credited ? 'USDT has been added to your in-app wallet. You can request a manual withdrawal from Wallet.' : 'Claim the prize and the winning bid will be deducted directly from your in-app wallet.'}</small>
     </div>
     <button className="winner-continue" onClick={() => dialog.current?.close()}>{credited ? 'Open wallet' : 'Continue'}</button>

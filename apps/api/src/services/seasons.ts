@@ -43,6 +43,7 @@ export async function confirmSeasonPayment(tx: Prisma.TransactionClient, payment
 }
 
 const DAY = 86400000;
+const FIRST_PACKAGE_DAILY_GIFT_MAX = PACKAGE_RULES[0].giftMax * 1_000_000n;
 // Explicit super-admin action. Retain historical claims/days and all ledger records.
 export async function resetSeasonProgress(actorId: string, requestKey: string) {
   return prisma.$transaction(async tx => {
@@ -78,7 +79,11 @@ async function openDay(tx: Prisma.TransactionClient, enrollmentId: string, numbe
   const setting = await tx.systemSetting.findUnique({ where: { key: 'daily_gift_policy' } });
   const policy = setting ? dailyGiftPolicyInput.parse(setting.value) : null;
   const tasks = await tx.task.findMany({ where: { isDaily: true, status: 'PUBLISHED', AND: [{ OR: [{ dayNumber: number }, { dayNumber: null }] }, { OR: [{ dayNumber: { not: null } }, { startsAt: { lte: opensAt }, OR: [{ endsAt: null }, { endsAt: { gt: opensAt } }] }] }] }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: { id: true } });
-  return tx.seasonDay.create({ data: { enrollmentId, number, opensAt, deadline: nextSeasonNoon(opensAt), gift: policy?.enabled ? parseUsdt(policy.usdt) : gift, giftGen: policy?.enabled ? policy.gen : 0, giftXp: policy?.enabled ? policy.xp : 0, requiredTaskIds: tasks.map(task => task.id) } });
+  const scheduledGift = policy?.days[String(number)];
+  const activeGift = scheduledGift?.enabled ? scheduledGift : policy?.enabled ? policy : null;
+  const requestedGift = activeGift ? parseUsdt(activeGift.usdt) : gift;
+  const cappedGift = requestedGift > FIRST_PACKAGE_DAILY_GIFT_MAX ? FIRST_PACKAGE_DAILY_GIFT_MAX : requestedGift;
+  return tx.seasonDay.create({ data: { enrollmentId, number, opensAt, deadline: nextSeasonNoon(opensAt), gift: cappedGift, giftGen: activeGift?.gen ?? 0, giftXp: activeGift?.xp ?? 0, requiredTaskIds: tasks.map(task => task.id) } });
 }
 export async function enrollFreeSeason(tx: Prisma.TransactionClient, userId: string, now = new Date()) {
   const existing = await tx.seasonEnrollment.findUnique({ where: { userId_season: { userId, season: 1 } } });
@@ -165,7 +170,7 @@ export async function advanceSeasonDay(dayId: string, now = new Date()) {
     const user = await tx.user.findUniqueOrThrow({ where: { id: day.enrollment.userId } });
     const rule = PACKAGE_RULES.find(item => item.code === user.activePackageCode);
     if (!rule) throw new Error('Package required');
-    const max = rule.giftMax * 1000000n;
+    const max = FIRST_PACKAGE_DAILY_GIFT_MAX;
     const next = day.graceAt ? day.gift : day.claimedAt ? day.gift + 1000000n : rule.resetGift * 1000000n;
     const gift = next > max ? max : next;
     await openDay(tx, day.enrollmentId, day.number + 1, day.deadline, gift);

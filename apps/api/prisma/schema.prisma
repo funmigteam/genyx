@@ -67,6 +67,7 @@ enum TaskKind {
   XP_REACHED
   LEVEL_REACHED
   GAME_PLAYED
+  LOTTERY_BID_COUNT
   BINARY_AMOUNT
   SHOP_BOOST_COUNT
   SHOP_PROFILE_COUNT
@@ -489,6 +490,7 @@ model AuctionEntryPass {
   user User @relation(fields: [userId], references: [id], onDelete: Restrict)
   series String
   entryUsdt BigInt
+  roomsRemaining Int @default(2)
   createdAt DateTime @default(now())
   @@unique([userId, series])
   @@index([series])
@@ -502,6 +504,7 @@ model AuctionBid {
   requestKey String @unique
   createdAt DateTime @default(now())
   @@index([auctionId, cents])
+  @@index([userId, createdAt])
 }
 model AuctionAward {
   id String @id @default(cuid())
@@ -514,6 +517,7 @@ model AuctionAward {
   prizeXp Int
   expiresAt DateTime
   status String @default("OFFERED")
+  revealedAt DateTime?
   @@index([status, expiresAt])
 }
 

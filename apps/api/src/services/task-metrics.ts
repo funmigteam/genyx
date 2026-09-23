@@ -1,10 +1,11 @@
 import { Prisma } from '@prisma/client';
-export const metricKinds=['BINARY_AMOUNT','SHOP_BOOST_COUNT','SHOP_PROFILE_COUNT','SHOP_TIME_COUNT','DIRECT_COUNT','MAX_CAP_REACHED','USED_CAP_REACHED','SEASON_REACHED','CYCLES_REACHED','VOUCHERS_REACHED','GEN_SPENT','DAY_REACHED'];
+export const metricKinds=['LOTTERY_BID_COUNT','BINARY_AMOUNT','SHOP_BOOST_COUNT','SHOP_PROFILE_COUNT','SHOP_TIME_COUNT','DIRECT_COUNT','MAX_CAP_REACHED','USED_CAP_REACHED','SEASON_REACHED','CYCLES_REACHED','VOUCHERS_REACHED','GEN_SPENT','DAY_REACHED'];
 export async function checkMetric(tx:Prisma.TransactionClient,userId:string,kind:string,target:number){
  const user=await tx.user.findUniqueOrThrow({where:{id:userId}});let value=0n;let required=BigInt(target);
  if(kind==='MAX_CAP_REACHED'){value=user.maxCap;required*=1000000n;}
  if(kind==='USED_CAP_REACHED'){value=user.capConsumed;required*=1000000n;}
  if(kind==='GEN_SPENT')value=user.genSpent;
+ if(kind==='LOTTERY_BID_COUNT')value=BigInt(await tx.auctionBid.count({where:{userId}}));
  if(kind==='VOUCHERS_REACHED')value=BigInt(user.vouchers);
  if(kind==='DIRECT_COUNT')value=BigInt(await tx.user.count({where:{referredById:userId,activePackageCode:{not:null}}}));
  if(kind.startsWith('SHOP_'))value=BigInt(await tx.shopPurchase.count({where:{userId,item:{category:kind==='SHOP_BOOST_COUNT'?'BOOST':kind==='SHOP_PROFILE_COUNT'?'PROFILE':'TIME'}}}));

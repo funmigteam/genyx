@@ -27,3 +27,11 @@
 .admin-square-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
 .admin-square-stats>article{min-height:120px;display:flex;flex-direction:column;justify-content:center;padding:16px;border:1px solid #476078;border-radius:16px;background:linear-gradient(130deg,#163b43,#19253a)}
 .admin-square-stats>article:nth-child(3n+2){background:linear-gradient(130deg,#342749,#19253a)}
+.admin-task-day-heading{margin:26px 0 8px;padding:10px 12px;border-right:3px solid #32e5f5;border-radius:8px;background:#10283a;color:#dffaff;font-size:16px}
+.season-day-picker{margin:18px 0;border:1px solid #39536c;border-radius:14px;padding:14px;min-width:0}
+.season-day-picker legend{padding:0 7px;color:#dcecff;font-weight:800}
+.season-day-picker p{margin:0 0 12px;color:#9fb0c4;font-size:13px;line-height:1.6}
+.season-day-picker>div{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.season-day-picker button{padding:9px 4px!important;font-size:12px;white-space:nowrap}
+.season-day-picker button.selected{background:#22d3ee!important;border-color:#67e8f9!important;color:#07111e!important}
+@media (max-width:520px){.season-day-picker>div{grid-template-columns:repeat(3,minmax(0,1fr))}}

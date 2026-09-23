@@ -27,6 +27,7 @@
 .lion-app .task-list article:nth-child(3n+2){border-left-color:#bd8ffa;background:linear-gradient(120deg,#29243f,#111d30)}
 .lion-app .task-list article:nth-child(3n){border-left-color:#f0c16c;background:linear-gradient(120deg,#332d2c,#111d30)}
 .lion-app .task-list article.claimed{border-color:#59dca8;background:linear-gradient(120deg,#163a32,#111d30)}
+.lion-app .task-day-group{margin:22px 0}.lion-app .task-day-group>header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 9px;padding:10px 12px;border:1px solid #42617a;border-radius:12px;background:#0e2033}.lion-app .task-day-group>header span{color:#8cece4;font:800 10px Orbitron;letter-spacing:.09em}.lion-app .task-day-group>header small{color:#a9b9cd;font-size:10px;text-align:right}.lion-app .task-list article.locked{filter:saturate(.6);background:linear-gradient(120deg,#142130,#101824)}.lion-app .task-list article.locked .task-icon{background:#344051;color:#a9b6c7}.lion-app .task-list article.locked .state{color:#b9c6d6;border-color:#53657a}
 .financial-flows article.season-gift-card{border-color:#897049;background:radial-gradient(ellipse at 100% 0,#65443280,transparent 65%),linear-gradient(120deg,#292139,#12283b)}
 .financial-flows .season-gift-card h3{color:#ffdc8d}.financial-flows .season-gift-card progress{accent-color:#bb91f7}
 .financial-flows .season-gift-card button{border-color:#9e8653;background:#ffda8c;color:#251d0c;font-weight:700}

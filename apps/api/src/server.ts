@@ -16,7 +16,7 @@ import { recordBinaryVolume, processBinaryQueue } from './services/binary.js';
 import { readPackagePricing } from './services/package-pricing.js';
 import { getOrCreatePackageIntent } from './services/package-intents.js';
 import { discoverDeposits } from './services/deposit-discovery.js';
-import { createAuction, deleteUnusedAuction, placeAuctionBid, auctionPaymentIntent, claimAuctionAward, confirmAuctionPayment, processAuctions } from './services/auctions.js';
+import { createAuction, deleteUnusedAuction, placeAuctionBid, purchaseAuctionPackage, auctionPaymentIntent, claimAuctionAward, revealAuctionAward, confirmAuctionPayment, processAuctions } from './services/auctions.js';
 import { enrollFreeSeason, claimSeasonGift, useSeasonGrace, extendCurrentSeasonDay, processSeasonDays, confirmSeasonPayment, createSeasonIntent, resetSeasonProgress } from './services/seasons.js';
 import { settlePackagePools } from './services/package-pools.js';
 import { createWorker } from './services/worker-runner.js';
@@ -80,7 +80,7 @@ function hasPackageAccess(user: { activePackageCode: string | null; role: string
 
 const taskInput = z.object({
   title: z.string().min(2).max(120), description: z.string().max(600).optional(),
-  kind: z.enum(['CHANNEL_JOIN', 'EXTERNAL_LINK', 'DAILY_CHECKIN', 'MANUAL_REVIEW', 'XP_REACHED', 'LEVEL_REACHED', 'GAME_PLAYED','BINARY_AMOUNT','SHOP_BOOST_COUNT','SHOP_PROFILE_COUNT','SHOP_TIME_COUNT','DIRECT_COUNT','MAX_CAP_REACHED','USED_CAP_REACHED','SEASON_REACHED','CYCLES_REACHED','VOUCHERS_REACHED','GEN_SPENT','DAY_REACHED']).default('EXTERNAL_LINK'),
+  kind: z.enum(['CHANNEL_JOIN', 'EXTERNAL_LINK', 'DAILY_CHECKIN', 'MANUAL_REVIEW', 'XP_REACHED', 'LEVEL_REACHED', 'GAME_PLAYED','LOTTERY_BID_COUNT','BINARY_AMOUNT','SHOP_BOOST_COUNT','SHOP_PROFILE_COUNT','SHOP_TIME_COUNT','DIRECT_COUNT','MAX_CAP_REACHED','USED_CAP_REACHED','SEASON_REACHED','CYCLES_REACHED','VOUCHERS_REACHED','GEN_SPENT','DAY_REACHED']).default('EXTERNAL_LINK'),
   channelChatId: z.string().regex(/^(@[a-zA-Z0-9_]{5,32}|-100\d+)$/).nullable().optional(),
   targetValue: z.number().int().min(1).max(1_000_000_000).default(1),
   dayNumber: z.number().int().min(1).max(30).nullable().optional(),
@@ -106,6 +106,12 @@ const shopItemInput = z.object({
 });
 const channelInput = z.object({ chatId: z.string().min(2).max(128), title: z.string().min(2).max(80), inviteUrl: z.string().url(), active: z.boolean().default(true), sortOrder: z.number().int().min(0).max(10_000).default(0) });
 const lotteryInput = z.object({ title: z.string().min(2).max(120), description: z.string().max(600).optional(), entryGen: z.number().int().min(1).max(10_000_000), prizeGen: z.number().int().min(1).max(1_000_000_000), prizeUsdt: z.string().regex(/^\d{1,12}(\.\d{1,6})?$/).default('0'), startsAt: z.coerce.date(), endsAt: z.coerce.date(), status: z.enum(['DRAFT', 'OPEN']).default('DRAFT') });
+const auctionPackagePricesInput = z.object({ A: z.string().regex(/^\d{1,12}(\.\d{1,6})?$/), B: z.string().regex(/^\d{1,12}(\.\d{1,6})?$/), C: z.string().regex(/^\d{1,12}(\.\d{1,6})?$/) });
+const defaultAuctionPackagePrices = { A: '3', B: '2', C: '1' };
+async function readAuctionPackagePrices() {
+  const setting = await prisma.systemSetting.findUnique({ where: { key: 'auction_package_prices' } });
+  return setting ? auctionPackagePricesInput.parse(setting.value) : defaultAuctionPackagePrices;
+}
 
 function todayKey() { return new Intl.DateTimeFormat('en-CA', { timeZone: economics.timezone }).format(new Date()); }
 async function ensureUserAccounts(userId: string) {
@@ -303,7 +309,7 @@ app.post('/v1/onboarding/verify', { preHandler: requireUser }, async (request: a
     return reply.code(503).send({ error: 'Membership verification is temporarily unavailable. Please retry or contact support.', code: 'MEMBERSHIP_CHECK_UNAVAILABLE' });
   }
 });
-app.get('/v1/terms', async () => { const value = await prisma.systemSetting.findUnique({ where: { key: 'terms_text' } }); return { text: typeof value?.value === 'string' ? value.value : 'GENYX is a centralized platform. Management enforces account, task, reward and restriction rules. Mandatory legal rights remain unaffected. Contact support for the complete terms.' }; });
+app.get('/v1/terms', async () => ({ text: (await currentTerms()).text }));
 app.put('/v1/admin/content/:key', { preHandler: requireUser }, async (request: any, reply) => {
   if (request.user.role !== 'SUPER_ADMIN') return reply.code(403).send({ error: 'فقط سوپرادمین' });
   const key = z.enum(['terms_text', 'welcome_message']).parse(request.params.key);
@@ -444,10 +450,10 @@ app.get('/v1/app/bootstrap', { preHandler: requireUser }, async (request: any) =
     prisma.shopPurchase.findMany({ where: { userId: user.id, status: 'COMPLETED' }, orderBy: { createdAt: 'desc' }, take: 20, include: { item: true } })
   ]);
   const currentSeason = await prisma.seasonEnrollment.findFirst({ where: { userId: user.id, currentDay: { gt: 0 } }, orderBy: { season: 'desc' }, include: { days: { where: { closedAt: null }, take: 1 } } });
-  const now = new Date(), dailyKey = currentSeason?.days[0] ? `season:${currentSeason.days[0].id}` : seasonDayKey(now);
+  const now = new Date(), currentSeasonDay = currentSeason?.days[0], dailyKey = currentSeasonDay ? `season:${currentSeasonDay.id}` : seasonDayKey(now);
   const progress = currentSeason ? Math.min(100, currentSeason.completedDays / 30 * 100) : 0;
   const packageAccess = hasPackageAccess(user);
-  return { user: { id: user.id, telegramId: user.telegramId.toString(), username: user.username, firstName: user.firstName, displayName: user.displayName, photoUrl: user.photoUrl, language: 'en', languageChosen: user.languageChosen, avatarStyle: user.avatarStyle, role: user.role, referralCode: user.referralCode ?? `GEN-${user.telegramId.toString()}`, package: user.activePackageCode, vouchers: user.vouchers, genSpent: user.genSpent.toString(), totalDeposited: user.totalDeposited.toString(), totalWithdrawn: user.totalWithdrawn.toString(), level: levelForXp(user.xp) }, balances: { gen: (await accountBalance(genAccount.id)).toString(), usdc: (await accountBalance(usdcAccount.id)).toString() }, season: { progress, eligibleSeasonTwo: Boolean(currentSeason), rewardMilestones: [] }, tasks: tasks.map(task => ({ ...task, locked: !packageAccess || (task.dayNumber === null && task.startsAt > now), claimed: task.claims.some(claim => claim.claimKey === (task.isDaily ? dailyKey : 'once') && claim.settledAt), pending: task.claims.some(claim => claim.claimKey === (task.isDaily ? dailyKey : 'once') && !claim.settledAt), claims: undefined })), shopItems, channels: channels.map(channel => ({ id: channel.id, title: channel.title, inviteUrl: channel.inviteUrl, verified: Boolean(channel.memberships[0]?.verifiedAt) })), purchases };
+  return { user: { id: user.id, telegramId: user.telegramId.toString(), username: user.username, firstName: user.firstName, displayName: user.displayName, photoUrl: user.photoUrl, language: 'en', languageChosen: user.languageChosen, avatarStyle: user.avatarStyle, role: user.role, referralCode: user.referralCode ?? `GEN-${user.telegramId.toString()}`, package: user.activePackageCode, vouchers: user.vouchers, genSpent: user.genSpent.toString(), totalDeposited: user.totalDeposited.toString(), totalWithdrawn: user.totalWithdrawn.toString(), level: levelForXp(user.xp) }, balances: { gen: (await accountBalance(genAccount.id)).toString(), usdc: (await accountBalance(usdcAccount.id)).toString() }, season: { progress, currentDay: currentSeasonDay?.number ?? 0, eligibleSeasonTwo: Boolean(currentSeason), rewardMilestones: [] }, tasks: tasks.map(task => ({ ...task, locked: !packageAccess || taskLocked(task, currentSeasonDay, now), claimed: task.claims.some(claim => claim.claimKey === (task.isDaily ? dailyKey : 'once') && claim.settledAt), pending: task.claims.some(claim => claim.claimKey === (task.isDaily ? dailyKey : 'once') && !claim.settledAt), claims: undefined })), shopItems, channels: channels.map(channel => ({ id: channel.id, title: channel.title, inviteUrl: channel.inviteUrl, verified: Boolean(channel.memberships[0]?.verifiedAt) })), purchases };
 });
 
 app.post('/v1/tasks/:id/open', { preHandler: requireUser }, async (request: any, reply) => {
@@ -555,8 +561,14 @@ app.put('/v1/admin/daily-gift-policy', { preHandler: requireUser }, async (reque
   const value = dailyGiftPolicyInput.parse(request.body);
   return prisma.$transaction(async tx => {
     await tx.systemSetting.upsert({ where: { key: 'daily_gift_policy' }, create: { key: 'daily_gift_policy', value }, update: { value } });
+    let updatedActiveDays = 0;
+    for (const [dayNumber, gift] of Object.entries(value.days)) {
+      if (!gift.enabled) continue;
+      const result = await tx.seasonDay.updateMany({ where: { number: Number(dayNumber), closedAt: null, claimedAt: null, graceAt: null, enrollment: { endedAt: null } }, data: { gift: parseUsdt(gift.usdt) > 3_000_000n ? 3_000_000n : parseUsdt(gift.usdt), giftGen: gift.gen, giftXp: gift.xp } });
+      updatedActiveDays += result.count;
+    }
     await tx.auditEvent.create({ data: { actorId: request.user.sub, action: 'DAILY_GIFT_POLICY_UPDATED', entityType: 'SystemSetting', entityId: 'daily_gift_policy', after: value } });
-    return value;
+    return { ...value, updatedActiveDays };
   });
 });
 app.get('/v1/auctions/history', { preHandler: requireUser }, async (request: any) => {
@@ -566,6 +578,15 @@ app.get('/v1/auctions/history', { preHandler: requireUser }, async (request: any
   const where = { status: 'CLOSED' };
   const [total, rows] = await Promise.all([prisma.auction.count({ where }), prisma.auction.findMany({ where, skip: page * 20, take: 20, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { id: true, title: true, status: true, createdAt: true, remainingSeconds: true, endsAt: true, bidGen: true, prizeUsdt: true, prizeGen: true, prizeXp: true, awards: true, _count: { select: { bids: true } } } })]);
   return financialJson({ rows, total, page });
+});
+app.get('/v1/auctions/:id/bids', { preHandler: requireUser }, async (request: any, reply) => {
+  const auction = await prisma.auction.findFirst({ where: { id: request.params.id, status: 'CLOSED' }, select: { id: true } });
+  if (!auction) return reply.code(404).send({ error: 'Completed lottery room not found' });
+  const [total, rows] = await Promise.all([
+    prisma.auctionBid.count({ where: { auctionId: auction.id } }),
+    prisma.auctionBid.groupBy({ by: ['cents'], where: { auctionId: auction.id }, _count: { _all: true }, orderBy: { cents: 'asc' }, take: 1000 }),
+  ]);
+  return financialJson({ total, rows: rows.map(row => ({ cents: row.cents, count: row._count._all })), truncated: rows.length === 1000 });
 });
 app.get('/v1/admin/overview', { preHandler: requireAdmin }, async () => {
   const [users, tasks, packages, pendingPayments, pendingWithdrawals, confirmed] = await Promise.all([prisma.user.count(), prisma.task.count(), prisma.systemSetting.findUnique({ where: { key: 'package_prices' } }), prisma.payment.count({ where: { status: 'PENDING' } }), prisma.withdrawal.count({ where: { status: { in: ['REQUESTED', 'REVIEWING', 'APPROVED'] } } }), prisma.payment.aggregate({ where: { status: 'CONFIRMED' }, _sum: { expectedAmount: true } })]);
@@ -848,9 +869,37 @@ auctionWorker?.start();
 app.get('/v1/auctions', { preHandler: requireUser }, async (request: any) => {
   const rooms = await prisma.auction.findMany({ where: { status: { in: ['OPEN', 'AWAITING', 'CLOSED'] } }, orderBy: { createdAt: 'desc' }, take: 100, select: { id: true, title: true, series: true, round: true, entryUsdt: true, autoAdvance: true, bidGen: true, prizeUsdt: true, prizeGen: true, prizeXp: true, remainingSeconds: true, endsAt: true, status: true, _count: { select: { bids: { where: { userId: request.user.sub } } } }, awards: true } });
   const series = [...new Set(rooms.map(room => room.series ?? `ROOM:${room.id}`))];
-  const passes = series.length ? await prisma.auctionEntryPass.findMany({ where: { userId: request.user.sub, series: { in: series } }, select: { series: true } }) : [];
-  const paid = new Set(passes.map(pass => pass.series));
-  return financialJson(rooms.map(room => ({ ...room, entryPaid: paid.has(room.series ?? `ROOM:${room.id}`) })));
+  const passes = series.length ? await prisma.auctionEntryPass.findMany({ where: { userId: request.user.sub, series: { in: series } }, select: { series: true, roomsRemaining: true } }) : [];
+  const passesBySeries = new Map(passes.map(pass => [pass.series, pass.roomsRemaining]));
+  return financialJson(rooms.map(room => ({ ...room, entryPaid: (passesBySeries.get(room.series ?? `ROOM:${room.id}`) ?? 0) > 0, entryCredits: passesBySeries.get(room.series ?? `ROOM:${room.id}`) ?? 0 })));
+});
+app.get('/v1/auction-packages', { preHandler: requireUser }, async (request: any) => {
+  const prices = await readAuctionPackagePrices();
+  const passes = await prisma.auctionEntryPass.findMany({ where: { userId: request.user.sub, series: { in: ['A', 'B', 'C'] } }, select: { series: true, roomsRemaining: true } });
+  const credits = new Map(passes.map(pass => [pass.series, pass.roomsRemaining]));
+  return financialJson(['A', 'B', 'C'].map(series => ({ series, priceUsdt: parseUsdt(prices[series as 'A' | 'B' | 'C']), hallsIncluded: 2, roomsRemaining: credits.get(series) ?? 0 })));
+});
+app.post('/v1/auction-packages/:series/purchase', { preHandler: requireUser }, async (request: any, reply) => {
+  const series = z.enum(['A', 'B', 'C']).safeParse(String(request.params.series).toUpperCase());
+  const body = z.object({ requestKey: z.string().uuid() }).parse(request.body);
+  if (!series.success) return reply.code(422).send({ error: 'Unknown lottery package' });
+  try {
+    const prices = await readAuctionPackagePrices();
+    const price = parseUsdt(prices[series.data]);
+    if (price <= 0n) throw new Error('Lottery package price must be positive');
+    return financialJson(await purchaseAuctionPackage(request.user.sub, series.data, price, body.requestKey));
+  } catch (error) { return reply.code(422).send({ error: error instanceof Error ? error.message : 'Lottery package purchase failed', requestId: request.id }); }
+});
+app.get('/v1/admin/auction-package-prices', { preHandler: requireAdmin }, async () => readAuctionPackagePrices());
+app.put('/v1/admin/auction-package-prices', { preHandler: requireUser }, async (request: any, reply) => {
+  if (request.user.role !== 'SUPER_ADMIN') return reply.code(403).send({ error: 'Super admin required' });
+  const prices = auctionPackagePricesInput.parse(request.body);
+  if (Object.values(prices).some(price => parseUsdt(price) <= 0n)) return reply.code(422).send({ error: 'Lottery package prices must be positive' });
+  return prisma.$transaction(async tx => {
+    await tx.systemSetting.upsert({ where: { key: 'auction_package_prices' }, create: { key: 'auction_package_prices', value: prices }, update: { value: prices } });
+    await tx.auditEvent.create({ data: { actorId: request.user.sub, action: 'AUCTION_PACKAGE_PRICES_UPDATED', entityType: 'SystemSetting', entityId: 'auction_package_prices', after: prices } });
+    return prices;
+  });
 });
 app.post('/v1/admin/auctions', { preHandler: requireUser }, async (request: any, reply) => {
   if (request.user.role !== 'SUPER_ADMIN') return reply.code(403).send({ error: 'فقط سوپرادمین می‌تواند اتاق بسازد.' });
@@ -905,6 +954,10 @@ app.post('/v1/auctions/awards/:id/claim', { preHandler: requireUser }, async (re
     const message = error instanceof Error ? error.message : 'Award claim failed';
     return reply.code(422).send({ error: message, requestId: request.id });
   }
+});
+app.post('/v1/auctions/awards/:id/reveal', { preHandler: requireUser }, async (request: any, reply) => {
+  try { return await revealAuctionAward(request.user.sub, request.params.id); }
+  catch (error) { return reply.code(422).send({ error: error instanceof Error ? error.message : 'Prize reveal failed' }); }
 });
 const seasonWorker = env.AUTOMATION_ENABLED ? createWorker('season-days', 30000, processSeasonDays, app.log) : undefined;
 seasonWorker?.start();
