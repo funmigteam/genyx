@@ -68,6 +68,8 @@ enum TaskKind {
   LEVEL_REACHED
   GAME_PLAYED
   LOTTERY_BID_COUNT
+  TEAM_COUNT
+  GROUP_OWNER_MEMBER_COUNT
   BINARY_AMOUNT
   SHOP_BOOST_COUNT
   SHOP_PROFILE_COUNT
@@ -91,6 +93,7 @@ enum TaskStatus {
 enum ShopPaymentMethod {
   GEN
   VOUCHER
+  USDT
 }
 
 enum PurchaseStatus {
@@ -280,6 +283,9 @@ model ShopItem {
   category String @default("BOOST")
   genPrice Int @default(0)
   voucherPrice Int @default(0)
+  usdtPrice BigInt @default(0)
+  rewardGen Int @default(0)
+  rewardVouchers Int @default(0)
   durationMinutes Int @default(0)
   imageKey String @default("spark")
   active Boolean @default(true)
@@ -296,6 +302,7 @@ model ShopPurchase {
   method ShopPaymentMethod
   genSpent Int @default(0)
   vouchersSpent Int @default(0)
+  usdtSpent BigInt @default(0)
   status PurchaseStatus @default(COMPLETED)
   activeUntil DateTime?
   createdAt DateTime @default(now())
@@ -331,6 +338,7 @@ model TaskClaim {
   taskId String
   userId String
   claimKey String @default("once")
+  groupChatId String?
   verifiedAt DateTime?
   quotedGen Int?
   quotedXp Int?

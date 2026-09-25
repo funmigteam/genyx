@@ -71,8 +71,16 @@ export function TaskManagement({
     }
   }
   const listedTasks = tasks
-    .filter((task) => task.status !== "ARCHIVED" && `${task.title} ${task.id}`.toLowerCase().includes(search.toLowerCase()))
-    .sort((first, second) => (first.dayNumber ?? 99) - (second.dayNumber ?? 99) || first.title.localeCompare(second.title));
+    .filter(
+      (task) =>
+        task.status !== "ARCHIVED" &&
+        `${task.title} ${task.id}`.toLowerCase().includes(search.toLowerCase()),
+    )
+    .sort(
+      (first, second) =>
+        (first.dayNumber ?? 99) - (second.dayNumber ?? 99) ||
+        first.title.localeCompare(second.title),
+    );
   return (
     <section className="admin-card admin-wide" aria-busy={busy}>
       <h2>کنترل انتشار و بررسی تسک‌ها</h2>
@@ -102,7 +110,13 @@ export function TaskManagement({
       </label>
       {listedTasks.map((t, index) => (
         <>
-          {(!index || listedTasks[index - 1].dayNumber !== t.dayNumber) && <h3 className="admin-task-day-heading">{t.dayNumber ? `تسک‌های روز ${t.dayNumber}` : "تسک‌های بدون روز مشخص"}</h3>}
+          {(!index || listedTasks[index - 1].dayNumber !== t.dayNumber) && (
+            <h3 className="admin-task-day-heading">
+              {t.dayNumber
+                ? `تسک‌های روز ${t.dayNumber}`
+                : "تسک‌های بدون روز مشخص"}
+            </h3>
+          )}
           <div key={t.id} className="admin-task-row">
             <details>
               <summary>
@@ -159,11 +173,15 @@ export function TaskManagement({
                   <select name="kind" defaultValue={t.kind ?? "EXTERNAL_LINK"}>
                     <option value="EXTERNAL_LINK">لینک بدون بررسی تماشا</option>
                     <option value="CHANNEL_JOIN">عضویت کانال</option>
+                    <option value="GROUP_OWNER_MEMBER_COUNT">
+                      مالک گروه + حداقل اعضا
+                    </option>
                     <option value="XP_REACHED">حداقل XP</option>
                     <option value="LEVEL_REACHED">حداقل لول</option>
                     <option value="LOTTERY_BID_COUNT">
                       تعداد پیشنهاد لاتاری
                     </option>
+                    <option value="TEAM_COUNT">تعداد کل تیم فعال</option>
                     <option value="GAME_PLAYED">تعداد بازی</option>
                     <option value="DAILY_CHECKIN">حضور روزانه</option>
                     <option value="MANUAL_REVIEW">بررسی مدیر</option>

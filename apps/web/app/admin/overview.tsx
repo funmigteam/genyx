@@ -1,14 +1,151 @@
-'use client';
-import { useEffect, useState } from 'react';
-import { Countdown } from '../countdown';
-import { DailyGiftEditor } from './daily-gift-editor';
-export function Overview({ token, superAdmin }: { token: string; superAdmin: boolean }) {
-  const [stats,setStats]=useState<Record<string,string|number>>({}),[gifts,setGifts]=useState<{id:string;number:number;deadline:string;gift:string;claimedAt:string|null;enrollment:{userId:string;season:number}}[]>([]),[message,setMessage]=useState('');
-  const request=async(path:string,body?:unknown)=>{const r=await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'}${path}`,{method:body?'PUT':'GET',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});const data=await r.json().catch(()=>({}));if(!r.ok)throw Error(`${data.error || 'خطا در دریافت'}${typeof data.requestId === 'string' ? ` (کد پیگیری: ${data.requestId})` : ''}`);return data;};
-  useEffect(()=>{const load=()=>Promise.all([request('/v1/admin/activity-stats'),request('/v1/admin/daily-gifts')]).then(([s,g])=>{setStats(s);setGifts(g);}).catch(e=>setMessage(e.message));void load();const timer=setInterval(load,30000);return()=>clearInterval(timer);},[token]);
-  const labels:Record<string,string>={incomingUsdt:'کل ورودی تأییدشده (USDT)',pendingPaymentsUsdt:'پرداخت منتظر تأیید (USDT)',pendingWithdrawalsUsdt:'برداشت منتظر مدیر (USDT)',users:'کل کاربران',activeUsers:'کاربران دارای پکیج',claims:'تسک تسویه‌شده',pendingClaims:'تسک منتظر بررسی',seasons:'فصل‌های ثبت‌شده',gifts:'هدایای دریافت‌شده',auctions:'اتاق‌ها',bids:'کل پیشنهادها',vouchers:'ووچر موجود کاربران',binaryUsdt:'پورسانت باینری (USDT)',gameRounds:'بازی تأییدشده'};
-  return <section className="admin-card" dir="rtl"><h2>آمار واقعی سیستم</h2><p role="status">{message}</p><div className="admin-two admin-square-stats">{Object.entries(stats).map(([key,value])=><article key={key}><small>{labels[key] || key}</small><h3>{key.endsWith('Usdt') ? Number(value)/1000000 : value}</h3></article>)}</div><details><summary>گزارش هدیه روزانه — ۱۰۰ رکورد آخر</summary>{gifts.map(g=><p key={g.id}>کاربر {g.enrollment.userId} · فصل {g.enrollment.season} · روز {g.number} · {Number(g.gift)/1000000} USDT · {g.claimedAt?'دریافت‌شده':<Countdown end={g.deadline}/>}</p>)}</details>
-    {superAdmin && <DailyGiftEditor token={token} />}
-    {superAdmin && ['welcome_message','terms_text'].map(key=><form key={key} onSubmit={async e=>{e.preventDefault();const text=new FormData(e.currentTarget).get('text');try{await request(`/v1/admin/content/${key}`,{text});setMessage('متن ذخیره شد');}catch(e){setMessage(e instanceof Error?e.message:'خطا');}}}><label>{key==='welcome_message'?'متن خوش‌آمدگویی ربات':'شرایط استفاده کامل'}<textarea name="text" minLength={10} maxLength={key==='welcome_message'?3000:30000} required /></label><button>ذخیره متن</button></form>)}
-  </section>;
+"use client";
+import { useEffect, useState } from "react";
+import { Countdown } from "../countdown";
+import { DailyGiftEditor } from "./daily-gift-editor";
+export function Overview({
+  token,
+  superAdmin,
+}: {
+  token: string;
+  superAdmin: boolean;
+}) {
+  const [stats, setStats] = useState<Record<string, string | number>>({}),
+    [gifts, setGifts] = useState<
+      {
+        id: string;
+        number: number;
+        deadline: string;
+        gift: string;
+        claimedAt: string | null;
+        enrollment: { userId: string; season: number };
+      }[]
+    >([]),
+    [message, setMessage] = useState(""),
+    [content, setContent] = useState<Record<string, string>>({});
+  const request = async (path: string, body?: unknown) => {
+    const r = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001"}${path}`,
+      {
+        method: body ? "PUT" : "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      },
+    );
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok)
+      throw Error(
+        `${data.error || "خطا در دریافت"}${typeof data.requestId === "string" ? ` (کد پیگیری: ${data.requestId})` : ""}`,
+      );
+    return data;
+  };
+  useEffect(() => {
+    const load = () =>
+      Promise.all([
+        request("/v1/admin/activity-stats"),
+        request("/v1/admin/daily-gifts"),
+      ])
+        .then(([s, g]) => {
+          setStats(s);
+          setGifts(g);
+        })
+        .catch((e) => setMessage(e.message));
+    void load();
+    const timer = setInterval(load, 30000);
+    return () => clearInterval(timer);
+  }, [token]);
+  useEffect(() => {
+    if (superAdmin)
+      void Promise.all(
+        ["welcome_message", "terms_text"].map((key) =>
+          request(`/v1/admin/content/${key}`).then(
+            (value: any) => [key, value.text] as const,
+          ),
+        ),
+      )
+        .then((rows) => setContent(Object.fromEntries(rows)))
+        .catch((e) => setMessage(e.message));
+  }, [token, superAdmin]);
+  const labels: Record<string, string> = {
+    incomingUsdt: "کل ورودی تأییدشده (USDT)",
+    pendingPaymentsUsdt: "پرداخت منتظر تأیید (USDT)",
+    pendingWithdrawalsUsdt: "برداشت منتظر مدیر (USDT)",
+    users: "کل کاربران",
+    activeUsers: "کاربران دارای پکیج",
+    claims: "تسک تسویه‌شده",
+    pendingClaims: "تسک منتظر بررسی",
+    seasons: "فصل‌های ثبت‌شده",
+    gifts: "هدایای دریافت‌شده",
+    auctions: "اتاق‌ها",
+    bids: "کل پیشنهادها",
+    vouchers: "ووچر موجود کاربران",
+    binaryUsdt: "پورسانت باینری (USDT)",
+    gameRounds: "بازی تأییدشده",
+  };
+  return (
+    <section className="admin-card" dir="rtl">
+      <h2>آمار واقعی سیستم</h2>
+      <p role="status">{message}</p>
+      <div className="admin-two admin-square-stats">
+        {Object.entries(stats).map(([key, value]) => (
+          <article key={key}>
+            <small>{labels[key] || key}</small>
+            <h3>{key.endsWith("Usdt") ? Number(value) / 1000000 : value}</h3>
+          </article>
+        ))}
+      </div>
+      <details>
+        <summary>گزارش هدیه روزانه — ۱۰۰ رکورد آخر</summary>
+        {gifts.map((g) => (
+          <p key={g.id}>
+            کاربر {g.enrollment.userId} · فصل {g.enrollment.season} · روز{" "}
+            {g.number} · {Number(g.gift) / 1000000} USDT ·{" "}
+            {g.claimedAt ? "دریافت‌شده" : <Countdown end={g.deadline} />}
+          </p>
+        ))}
+      </details>
+      {superAdmin && <DailyGiftEditor token={token} />}
+      {superAdmin &&
+        ["welcome_message", "terms_text"].map((key) => (
+          <form
+            key={key}
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const text = String(
+                new FormData(e.currentTarget).get("text") ?? "",
+              );
+              try {
+                await request(`/v1/admin/content/${key}`, { text });
+                setContent((current) => ({ ...current, [key]: text }));
+                setMessage("متن ذخیره و در بات اعمال شد.");
+              } catch (e) {
+                setMessage(e instanceof Error ? e.message : "خطا");
+              }
+            }}
+          >
+            <label>
+              {key === "welcome_message"
+                ? "متن خوش‌آمدگویی ربات"
+                : "شرایط استفاده کامل"}
+              <textarea
+                name="text"
+                value={content[key] ?? ""}
+                onChange={(e) =>
+                  setContent((current) => ({
+                    ...current,
+                    [key]: e.target.value,
+                  }))
+                }
+                minLength={10}
+                maxLength={key === "welcome_message" ? 3000 : 30000}
+                required
+              />
+            </label>
+            <button>ذخیره متن</button>
+          </form>
+        ))}
+    </section>
+  );
 }

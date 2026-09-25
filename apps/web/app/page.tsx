@@ -59,6 +59,9 @@ type ShopItem = {
   category: string;
   genPrice: number;
   voucherPrice: number;
+  usdtPrice?: string;
+  rewardGen?: number;
+  rewardVouchers?: number;
   durationMinutes: number;
   imageKey: string;
 };
@@ -95,6 +98,8 @@ type Bootstrap = {
     firstName?: string | null;
     displayName?: string | null;
     photoUrl?: string | null;
+    avatarStyle?: string;
+    profileStyles?: string[];
     language: string;
     languageChosen: boolean;
     role: string;
@@ -417,11 +422,14 @@ export default function Home() {
   const isAdmin = Boolean(data?.user.role && data.user.role !== "USER");
   const active = Boolean(data?.user.package) || isAdmin,
     gated = !active && tab !== "shop";
-  const claim = async (id: string) => {
+  const claim = async (id: string, groupChatId?: string) => {
     try {
       const result = await request<{ settledAt: string | null }>(
         `/v1/tasks/${id}/claim`,
-        { method: "POST" },
+        {
+          method: "POST",
+          body: JSON.stringify(groupChatId ? { groupChatId } : {}),
+        },
       );
       setNotice(
         result.settledAt
@@ -433,7 +441,7 @@ export default function Home() {
       setNotice(e instanceof Error ? e.message : "Claim failed.");
     }
   };
-  const buy = async (id: string, method: "GEN" | "VOUCHER") => {
+  const buy = async (id: string, method: "GEN" | "VOUCHER" | "USDT") => {
     try {
       await request(`/v1/shop/${id}/purchase`, {
         method: "POST",
@@ -605,12 +613,6 @@ export default function Home() {
               <>
                 <XpBoostStatus request={request} />
                 <Tasks data={data} claim={claim} request={request} />
-                <FinancialFlows
-                  token={token}
-                  mode="seasons"
-                  packageCode={data?.user.package}
-                  changed={refresh}
-                />
               </>
             )}
             {tab === "team" && <CommunityPanel request={request} />}
@@ -657,6 +659,13 @@ export default function Home() {
                     await request("/v1/me/profile", {
                       method: "PATCH",
                       body: JSON.stringify(value),
+                    });
+                    await refresh();
+                  }}
+                  equip={async (style) => {
+                    await request("/v1/me/profile-style", {
+                      method: "PATCH",
+                      body: JSON.stringify({ style }),
                     });
                     await refresh();
                   }}
@@ -965,7 +974,7 @@ function Tasks({
   request,
 }: {
   data: Bootstrap | null;
-  claim: (id: string) => Promise<void>;
+  claim: (id: string, groupChatId?: string) => Promise<void>;
   request: <T>(path: string, init?: RequestInit) => Promise<T>;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
@@ -974,7 +983,12 @@ function Tasks({
   const currentDay = data?.season.currentDay ?? 0;
   const groups = new Map<number | null, Task[]>();
   for (const task of data?.tasks ?? []) {
-    if (task.dayNumber !== null && task.dayNumber !== undefined && (task.dayNumber < currentDay || task.dayNumber > currentDay + 1)) continue;
+    if (
+      task.dayNumber !== null &&
+      task.dayNumber !== undefined &&
+      (task.dayNumber < currentDay || task.dayNumber > currentDay + 1)
+    )
+      continue;
     const key = task.dayNumber ?? null;
     groups.set(key, [...(groups.get(key) ?? []), task]);
   }
@@ -1004,24 +1018,146 @@ function Tasks({
         <section className="task-day-group" key={day ?? "general"}>
           <header>
             <span>{groupTitle(day)}</span>
-            {day !== null && day > currentDay && <small>Complete the current day first</small>}
-            {day !== null && day < currentDay && <small>Rewards are no longer available</small>}
+            {day !== null && day > currentDay && (
+              <small>Complete the current day first</small>
+            )}
+            {day !== null && day < currentDay && (
+              <small>Rewards are no longer available</small>
+            )}
           </header>
           <div className="task-list">
             {tasks.map((t) => {
-              const futureTask = t.dayNumber !== null && t.dayNumber !== undefined && t.dayNumber > currentDay;
-              const expiredTask = t.dayNumber !== null && t.dayNumber !== undefined && t.dayNumber < currentDay;
-              return <article key={t.id} className={t.locked ? "locked" : t.claimed ? "claimed" : ""}>
-                <div className="task-icon"><Icon name={t.locked ? "lock" : t.claimed ? "check" : "bolt"} /></div>
-                <div>
-                  <span>{t.isDaily ? "DAILY MISSION" : "MISSION"} · {t.kind.replaceAll("_", " ")}</span>
-                  <h3>{t.title}</h3><p>{t.description}</p>
-                  {["XP_REACHED", "LEVEL_REACHED", "GAME_PLAYED", "LOTTERY_BID_COUNT"].includes(t.kind) && <p>Required: {t.targetValue} {t.kind === "XP_REACHED" ? "total XP" : t.kind === "LEVEL_REACHED" ? "level" : t.kind === "LOTTERY_BID_COUNT" ? "registered lottery bids" : "verified rounds"}</p>}
-                  <small>Base reward: {t.rewardGen} GEN · {t.rewardXp} XP · {(Number(t.rewardUsdt ?? 0) / 1_000_000).toFixed(2)} USDT. Package multipliers apply.</small>
-                  {t.actionUrl?.startsWith("https://") && !t.locked && <p><a className="mission-link-button" href={t.actionUrl} target="_blank" rel="noopener noreferrer" onClick={() => { void request("/v1/tasks/" + t.id + "/open", { method: "POST" }).then(() => setOpened(current => ({ ...current, [t.id]: true }))).catch(error => setLinkError(error.message)); }}>{t.kind === "CHANNEL_JOIN" ? "Join channel" : "Open mission link"} ↗</a></p>}
-                </div>
-                {t.claimed ? <b className="state">Reward received</b> : t.locked ? <b className="state">{futureTask ? "Locked for a later day" : expiredTask ? "Time expired" : "Locked"}</b> : t.pending && t.kind === "MANUAL_REVIEW" ? <b className="state">Awaiting review</b> : <button disabled={busy !== null || Boolean(t.actionUrl && !opened[t.id])} title={t.actionUrl && !opened[t.id] ? "Open the mission link first" : undefined} onClick={async () => { if (busy) return; setBusy(t.id); try { await claim(t.id); } finally { setBusy(null); } }}>{busy === t.id ? "Checking…" : t.kind === "CHANNEL_JOIN" ? "Check membership & claim" : "Claim"}</button>}
-              </article>;
+              const futureTask =
+                t.dayNumber !== null &&
+                t.dayNumber !== undefined &&
+                t.dayNumber > currentDay;
+              const expiredTask =
+                t.dayNumber !== null &&
+                t.dayNumber !== undefined &&
+                t.dayNumber < currentDay;
+              return (
+                <article
+                  key={t.id}
+                  className={t.locked ? "locked" : t.claimed ? "claimed" : ""}
+                >
+                  <div className="task-icon">
+                    <Icon
+                      name={t.locked ? "lock" : t.claimed ? "check" : "bolt"}
+                    />
+                  </div>
+                  <div>
+                    <span>
+                      {t.isDaily ? "DAILY MISSION" : "MISSION"} ·{" "}
+                      {t.kind.replaceAll("_", " ")}
+                    </span>
+                    <h3>{t.title}</h3>
+                    <p>{t.description}</p>
+                    {[
+                      "XP_REACHED",
+                      "LEVEL_REACHED",
+                      "GAME_PLAYED",
+                      "LOTTERY_BID_COUNT",
+                    ].includes(t.kind) && (
+                      <p>
+                        Required: {t.targetValue}{" "}
+                        {t.kind === "XP_REACHED"
+                          ? "total XP"
+                          : t.kind === "LEVEL_REACHED"
+                            ? "level"
+                            : t.kind === "LOTTERY_BID_COUNT"
+                              ? "registered lottery bids"
+                              : "verified rounds"}
+                      </p>
+                    )}
+                    <small>
+                      Base reward: {t.rewardGen} GEN · {t.rewardXp} XP ·{" "}
+                      {(Number(t.rewardUsdt ?? 0) / 1_000_000).toFixed(2)} USDT.
+                      Package multipliers apply.
+                    </small>
+                    {t.actionUrl?.startsWith("https://") && !t.locked && (
+                      <p>
+                        <a
+                          className="mission-link-button"
+                          href={t.actionUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => {
+                            void request("/v1/tasks/" + t.id + "/open", {
+                              method: "POST",
+                            })
+                              .then(() =>
+                                setOpened((current) => ({
+                                  ...current,
+                                  [t.id]: true,
+                                })),
+                              )
+                              .catch((error) => setLinkError(error.message));
+                          }}
+                        >
+                          {t.kind === "CHANNEL_JOIN"
+                            ? "Join channel"
+                            : "Open mission link"}{" "}
+                          ↗
+                        </a>
+                      </p>
+                    )}
+                  </div>
+                  {t.claimed ? (
+                    <b className="state">Reward received</b>
+                  ) : t.locked ? (
+                    <b className="state">
+                      {futureTask
+                        ? "Locked for a later day"
+                        : expiredTask
+                          ? "Time expired"
+                          : "Locked"}
+                    </b>
+                  ) : t.pending && t.kind === "MANUAL_REVIEW" ? (
+                    <b className="state">Awaiting review</b>
+                  ) : (
+                    <button
+                      disabled={
+                        busy !== null || Boolean(t.actionUrl && !opened[t.id])
+                      }
+                      title={
+                        t.actionUrl && !opened[t.id]
+                          ? "Open the mission link first"
+                          : undefined
+                      }
+                      onClick={async () => {
+                        if (busy) return;
+                        setBusy(t.id);
+                        try {
+                          const groupChatId =
+                            t.kind === "GROUP_OWNER_MEMBER_COUNT"
+                              ? window
+                                  .prompt(
+                                    "Enter your Telegram group ID (for example -100…):",
+                                  )
+                                  ?.trim()
+                              : undefined;
+                          if (
+                            t.kind === "GROUP_OWNER_MEMBER_COUNT" &&
+                            !groupChatId
+                          ) {
+                            setBusy(null);
+                            return;
+                          }
+                          await claim(t.id, groupChatId);
+                        } finally {
+                          setBusy(null);
+                        }
+                      }}
+                    >
+                      {busy === t.id
+                        ? "Checking…"
+                        : t.kind === "CHANNEL_JOIN"
+                          ? "Check membership & claim"
+                          : "Claim"}
+                    </button>
+                  )}
+                </article>
+              );
             })}
           </div>
         </section>
@@ -1092,7 +1228,7 @@ function Shop({
   data: Bootstrap | null;
   packs: PackageCard[];
   select: (p: PackageCard) => void;
-  buy: (id: string, m: "GEN" | "VOUCHER") => void;
+  buy: (id: string, m: "GEN" | "VOUCHER" | "USDT") => void;
   verify: (c: Channel) => void;
 }) {
   const [category, setCategory] = useState("PACKAGE");
@@ -1108,6 +1244,7 @@ function Shop({
           ["PACKAGE", "Packages"],
           ["PROFILE", "Custom profile"],
           ["TIME", "24-hour task time"],
+          ["LOTTERY", "Lottery packs"],
         ].map(([id, label]) => (
           <button
             key={id}
@@ -1125,7 +1262,8 @@ function Shop({
             {fmt(data?.balances.gen ?? 0)} <small>GEN</small>
           </b>
           <p>
-            {fmt(data?.user.vouchers ?? 0)} vouchers · ledger-backed purchases.
+            {fmt(data?.user.vouchers ?? 0)} vouchers ·{" "}
+            {fmt(Number(data?.balances.usdc ?? 0) / 1_000_000)} USDT in wallet.
           </p>
         </div>
         <div>
@@ -1228,6 +1366,13 @@ function Shop({
                   ? `${i.durationMinutes} min activity window`
                   : "Permanent account option"}
               </small>
+              {i.rewardGen || i.rewardVouchers ? (
+                <small>
+                  Includes {i.rewardGen ? `${i.rewardGen} GEN` : ""}
+                  {i.rewardGen && i.rewardVouchers ? " · " : ""}
+                  {i.rewardVouchers ? `${i.rewardVouchers} voucher` : ""}
+                </small>
+              ) : null}
               <div className="shop-actions">
                 <button onClick={() => buy(i.id, "GEN")}>
                   Buy · {i.genPrice} GEN
@@ -1235,6 +1380,11 @@ function Shop({
                 {i.voucherPrice > 0 && (
                   <button onClick={() => buy(i.id, "VOUCHER")}>
                     {i.voucherPrice} voucher
+                  </button>
+                )}
+                {Number(i.usdtPrice ?? 0) > 0 && (
+                  <button onClick={() => buy(i.id, "USDT")}>
+                    {fmt(Number(i.usdtPrice) / 1_000_000)} USDT
                   </button>
                 )}
               </div>
@@ -1326,15 +1476,17 @@ function Lottery({
 function Profile({
   data,
   save,
+  equip,
 }: {
   data: Bootstrap | null;
   save: (value: { displayName: string; language: string }) => Promise<void>;
+  equip: (style: string) => Promise<void>;
 }) {
   const u = data?.user;
   return (
     <>
       <section className="profile-card">
-        <div className="avatar">
+        <div className={`avatar avatar-style-${(u?.avatarStyle ?? "lion").replace(/[^a-zA-Z0-9_-]/g, "")}`}>
           {u?.photoUrl ? (
             <img
               src={u.photoUrl}
@@ -1383,6 +1535,28 @@ function Profile({
           language={u.language}
           save={save}
         />
+      )}
+      {u && (
+        <section className="profile-settings">
+          <h2>Profile collection</h2>
+          <p>
+            Buy profile styles in Shop, then equip one here. You can change or
+            remove it at any time.
+          </p>
+          <div className="shop-actions">
+            {(u.profileStyles ?? ["lion"]).map((style) => (
+              <button
+                key={style}
+                type="button"
+                aria-pressed={u.avatarStyle === style}
+                onClick={() => void equip(style)}
+              >
+                {u.avatarStyle === style ? "Equipped · " : ""}
+                {style}
+              </button>
+            ))}
+          </div>
+        </section>
       )}
       <WalletPanel detailed />
     </>
