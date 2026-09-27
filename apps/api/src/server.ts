@@ -754,18 +754,6 @@ async function seedCoreContent() {
     await prisma.shopItem.createMany({
       data: [
         {
-          sku: "TASK_TIME_30",
-          title: "24-hour daily gift extension",
-          description:
-            "Add 24 hours to your current day. Complete its tasks and claim the daily gift before the extended deadline. Purchase before time runs out.",
-          category: "TIME",
-          genPrice: 40,
-          voucherPrice: 1,
-          durationMinutes: 1440,
-          imageKey: "clock",
-          sortOrder: 1,
-        },
-        {
           sku: "PROFILE_GOLD",
           title: "Gold profile frame",
           description: "Personalize your profile with an earned gold frame.",
@@ -775,60 +763,16 @@ async function seedCoreContent() {
           imageKey: "frame",
           sortOrder: 2,
         },
-        {
-          sku: "SEASON_BOOST",
-          title: "24-hour XP boost",
-          description:
-            "Double task XP for 24 hours. Multiplies the package XP benefit. Only one XP boost can be active.",
-          category: "BOOST",
-          genPrice: 250,
-          voucherPrice: 3,
-          durationMinutes: 1440,
-          imageKey: "spark",
-          sortOrder: 3,
-        },
       ],
     });
-  await prisma.shopItem.updateMany({
-    where: { sku: "SEASON_BOOST", category: "BOOST", durationMinutes: 0 },
-    data: {
-      title: "24-hour XP boost",
-      description:
-        "Double task XP for 24 hours. Multiplies package XP; active boosts do not stack.",
-      durationMinutes: 1440,
-    },
+  const retiredShopSkus = ["SEASON_BOOST", "TASK_TIME_30", "DAILY_GIFT_24H"];
+  await prisma.shopItem.deleteMany({
+    where: { sku: { in: retiredShopSkus }, purchases: { none: {} } },
   });
   await prisma.shopItem.updateMany({
-    where: { sku: "TASK_TIME_30", category: "TIME", durationMinutes: 30 },
-    data: {
-      title: "24-hour daily gift extension",
-      description:
-        "Add 24 hours to the current day to finish tasks and claim your gift. Buy before the deadline.",
-      durationMinutes: 1440,
-    },
+    where: { sku: { in: retiredShopSkus } },
+    data: { active: false },
   });
-  if (
-    !(await prisma.shopItem.findFirst({
-      where: { category: "TIME", durationMinutes: 1440 },
-    }))
-  ) {
-    await prisma.shopItem.upsert({
-      where: { sku: "DAILY_GIFT_24H" },
-      update: {},
-      create: {
-        sku: "DAILY_GIFT_24H",
-        title: "24-hour daily gift extension",
-        description:
-          "Extend your current day by 24 hours. Buy before its deadline.",
-        category: "TIME",
-        durationMinutes: 1440,
-        genPrice: 40,
-        voucherPrice: 1,
-        imageKey: "clock",
-        sortOrder: 1,
-      },
-    });
-  }
   // Storefront lottery packs: each purchase grants two entries in its series.
   // Existing administrator edits are preserved on every later boot.
   for (const pack of [

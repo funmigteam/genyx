@@ -677,9 +677,7 @@ export default function AdminPage() {
                       setShopForm({ ...shopForm, category: event.target.value })
                     }
                   >
-                    <option value="BOOST">XP Boost</option>
                     <option value="PROFILE">Custom profile</option>
-                    <option value="TIME">Task time</option>
                     <option value="VOUCHER">Voucher</option>
                     <option value="GEN">GEN</option>
                     <option value="LOTTERY">Lottery pack</option>
@@ -742,9 +740,7 @@ export default function AdminPage() {
                       <label>
                         نوع
                         <select name="category" defaultValue={item.category}>
-                          <option value="BOOST">XP Boost</option>
                           <option value="PROFILE">Custom profile</option>
-                          <option value="TIME">Task time</option>
                           <option value="VOUCHER">Voucher</option>
                           <option value="GEN">GEN</option>
                           <option value="LOTTERY">Lottery pack</option>

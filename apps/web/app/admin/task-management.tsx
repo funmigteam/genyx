@@ -190,12 +190,8 @@ export function TaskManagement({
                     <option value="DAILY_CHECKIN">حضور روزانه</option>
                     <option value="MANUAL_REVIEW">بررسی مدیر</option>
                     <option value="BINARY_AMOUNT">باینری دریافتی (USDT)</option>
-                    <option value="SHOP_BOOST_COUNT">تعداد خرید XP بوست</option>
                     <option value="SHOP_PROFILE_COUNT">
                       تعداد خرید کاستوم پروفایل
-                    </option>
-                    <option value="SHOP_TIME_COUNT">
-                      تعداد خرید وقت اضافه
                     </option>
                     <option value="DIRECT_COUNT">تعداد رفرال مستقیم</option>
                     <option value="MAX_CAP_REACHED">مکس کپ کل (USDT)</option>

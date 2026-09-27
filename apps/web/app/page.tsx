@@ -16,7 +16,6 @@ import { WalletPanel } from "./wallet-panel";
 import { ProfileEarnings } from "./profile-earnings";
 import { MemberMenu, SupportPanel, NotificationsPanel } from "./member-menu";
 import { Leaderboard } from "./leaderboard";
-import { XpBoostStatus } from "./xp-boost-status";
 import { FinancialFlows } from "./financial-flows";
 import { init as initTelegramSdk, retrieveRawInitData } from "@tma.js/sdk";
 import "./payment.css";
@@ -612,7 +611,6 @@ export default function Home() {
             )}
             {tab === "tasks" && (
               <>
-                <XpBoostStatus request={request} />
                 <Tasks data={data} claim={claim} request={request} />
               </>
             )}
@@ -620,7 +618,6 @@ export default function Home() {
             {tab === "leaderboard" && <Leaderboard request={request} />}
             {tab === "shop" && (
               <>
-                <XpBoostStatus request={request} />
                 <Shop
                   data={data}
                   packs={packs}
@@ -904,7 +901,7 @@ function Dashboard({
           label="GEN balance"
           value={`${fmt(data?.balances.gen ?? 0)} GEN`}
           icon="bolt"
-          info="Spend GEN in the Shop for boosts, time windows and profile options."
+          info="Spend GEN in the Shop for lottery packs and profile options."
         />
         <Metric
           label="Vouchers"
@@ -926,7 +923,7 @@ function Dashboard({
           <Icon name="bag" />
           <span>
             <b>Spend GEN</b>
-            <small>Boost time, profile and activity</small>
+            <small>Lottery packs and profile options</small>
           </span>
           <Icon name="arrow" />
         </button>
@@ -1255,11 +1252,9 @@ function Shop({
         aria-label="Shop categories"
       >
         {[
-          ["BOOST", "XP Boost"],
           ["PACKAGE", "Packages"],
           ["LOTTERY", "Lottery packs"],
           ["PROFILE", "Custom profile"],
-          ["TIME", "24-hour task time"],
         ].map(([id, label]) => (
           <button
             key={id}
