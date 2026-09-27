@@ -15,6 +15,7 @@ type Task = {
   rewardGen?: number;
   rewardXp?: number;
   rewardUsdt?: string | number;
+  rankOrder?: number | null;
 };
 type Claim = {
   id: string;
@@ -148,6 +149,9 @@ export function TaskManagement({
                     rewardUsdt: Math.round(
                       Number(f.get("rewardUsdt")) * 1000000,
                     ),
+                    rankOrder: f.get("rankOrder")
+                      ? Number(f.get("rankOrder"))
+                      : null,
                   });
                 }}
               >
@@ -247,6 +251,17 @@ export function TaskManagement({
                     {Array.from({ length: 30 }, (_, i) => (
                       <option value={i + 1} key={i}>
                         {i + 1}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  رتبه سازمانی
+                  <select name="rankOrder" defaultValue={t.rankOrder ?? ""}>
+                    <option value="">تسک عادی</option>
+                    {Array.from({ length: 12 }, (_, index) => (
+                      <option key={index} value={index + 1}>
+                        رتبه {index + 1}
                       </option>
                     ))}
                   </select>

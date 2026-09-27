@@ -43,6 +43,7 @@ type Task = {
   actionUrl?: string | null;
   pending?: boolean;
   targetValue?: number;
+  rankOrder?: number | null;
   rewardUsdt?: number;
   rewardGen: number;
   rewardXp: number;
@@ -874,25 +875,10 @@ function Dashboard({
   data: Bootstrap | null;
   go: (t: Tab) => void;
 }) {
-  const s = data?.season.progress ?? 0,
-    l = data?.user.level;
+  const l = data?.user.level;
   return (
     <>
       <section className="hero-grid">
-        <article className="season-card">
-          <span>SEASON PROGRESS</span>
-          <h2>Build your activity cycle.</h2>
-          <div className="season-track">
-            <div className="track">
-              <i style={{ width: `${s}%` }} />
-            </div>
-            <b>{Math.round(s)}%</b>
-          </div>
-          <p>
-            Completed season days. Next-season purchases have no percentage
-            requirement.
-          </p>
-        </article>
         <article className="lion-card">
           <span>
             LEVEL {l?.level ?? 1} / 30{" "}
@@ -925,18 +911,6 @@ function Dashboard({
           value={fmt(data?.user.vouchers ?? 0)}
           icon="ticket"
           info="Voucher counts are held on your account."
-        />
-        <Metric
-          label="Daily tasks"
-          value={`${data?.tasks.filter((t) => t.isDaily && t.claimed).length ?? 0} / 5`}
-          icon="check"
-          info="Five fixed daily tasks reset on the GENYX server."
-        />
-        <Metric
-          label="Season progress"
-          value={`${Math.round(s)}%`}
-          icon="gift"
-          info="Percentage of completed days; rewards appear only after server confirmation."
         />
       </div>
       <section className="quick">
@@ -978,6 +952,7 @@ function Tasks({
   request: <T>(path: string, init?: RequestInit) => Promise<T>;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
+  const [rankCelebration, setRankCelebration] = useState<Task | null>(null);
   const [opened, setOpened] = useState<Record<string, boolean>>({}),
     [linkError, setLinkError] = useState("");
   const currentDay = data?.season.currentDay ?? 0;
@@ -1005,6 +980,33 @@ function Tasks({
   };
   return (
     <>
+      {rankCelebration && (
+        <div
+          className="modal rank-reward-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Organizational rank reward"
+        >
+          <section>
+            <span>ORGANIZATIONAL RANK UNLOCKED</span>
+            <h2>{rankCelebration.title}</h2>
+            <b>
+              +
+              {(
+                Number(rankCelebration.rewardUsdt ?? 0) / 1_000_000
+              ).toLocaleString("en-US")}{" "}
+              <small>USDT</small>
+            </b>
+            <p>Your rank reward was recorded in your in-app wallet.</p>
+            <button
+              className="primary"
+              onClick={() => setRankCelebration(null)}
+            >
+              Continue
+            </button>
+          </section>
+        </div>
+      )}
       <section className="task-note">
         <Icon name="info" />
         <p>
@@ -1047,8 +1049,12 @@ function Tasks({
                   </div>
                   <div>
                     <span>
-                      {t.isDaily ? "DAILY MISSION" : "MISSION"} ·{" "}
-                      {t.kind.replaceAll("_", " ")}
+                      {t.rankOrder
+                        ? `ORGANIZATIONAL RANK ${t.rankOrder}`
+                        : t.isDaily
+                          ? "DAILY MISSION"
+                          : "MISSION"}{" "}
+                      · {t.kind.replaceAll("_", " ")}
                     </span>
                     <h3>{t.title}</h3>
                     <p>{t.description}</p>
@@ -1067,6 +1073,12 @@ function Tasks({
                             : t.kind === "LOTTERY_BID_COUNT"
                               ? "registered lottery bids"
                               : "verified rounds"}
+                      </p>
+                    )}
+                    {t.rankOrder && (
+                      <p>
+                        Complete {t.targetValue?.toLocaleString()} fixed cycles,
+                        then check in to claim this rank reward.
                       </p>
                     )}
                     <small>
@@ -1144,6 +1156,7 @@ function Tasks({
                             return;
                           }
                           await claim(t.id, groupChatId);
+                          if (t.rankOrder) setRankCelebration(t);
                         } finally {
                           setBusy(null);
                         }
@@ -1153,7 +1166,9 @@ function Tasks({
                         ? "Checking…"
                         : t.kind === "CHANNEL_JOIN"
                           ? "Check membership & claim"
-                          : "Claim"}
+                          : t.rankOrder
+                            ? "Check in & claim"
+                            : "Claim"}
                     </button>
                   )}
                 </article>
@@ -1242,9 +1257,9 @@ function Shop({
         {[
           ["BOOST", "XP Boost"],
           ["PACKAGE", "Packages"],
+          ["LOTTERY", "Lottery packs"],
           ["PROFILE", "Custom profile"],
           ["TIME", "24-hour task time"],
-          ["LOTTERY", "Lottery packs"],
         ].map(([id, label]) => (
           <button
             key={id}
@@ -1486,7 +1501,9 @@ function Profile({
   return (
     <>
       <section className="profile-card">
-        <div className={`avatar avatar-style-${(u?.avatarStyle ?? "lion").replace(/[^a-zA-Z0-9_-]/g, "")}`}>
+        <div
+          className={`avatar avatar-style-${(u?.avatarStyle ?? "lion").replace(/[^a-zA-Z0-9_-]/g, "")}`}
+        >
           {u?.photoUrl ? (
             <img
               src={u.photoUrl}

@@ -207,6 +207,7 @@ const taskInput = z.object({
     .nullable()
     .optional(),
   targetValue: z.number().int().min(1).max(1_000_000_000).default(1),
+  rankOrder: z.number().int().min(1).max(12).nullable().optional(),
   dayNumber: z.number().int().min(1).max(30).nullable().optional(),
   gameKey: z
     .string()
@@ -223,7 +224,11 @@ const taskInput = z.object({
   rewardXp: z.number().int().min(0).max(1_000_000).default(0),
   isDaily: z.boolean().default(false),
   startsAt: z.coerce.date().default(() => new Date()),
-  rewardUsdt: z.number().int().min(0).max(1_000_000_000).default(0),
+  rewardUsdt: z
+    .union([z.string(), z.number()])
+    .transform((value) => BigInt(Math.round(Number(value))))
+    .refine((value) => value >= 0n && value <= 1_000_000_000_000n)
+    .default(0),
   endsAt: z.coerce.date().optional(),
   status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]).default("DRAFT"),
 });
@@ -243,6 +248,11 @@ function validateTaskConditions(task: {
     throw new Error("Maximum level is 30");
   if (task.kind === "GAME_PLAYED" && !task.gameKey)
     throw new Error("Game key is required");
+  if (
+    (task as { rankOrder?: number | null }).rankOrder &&
+    task.kind !== "CYCLES_REACHED"
+  )
+    throw new Error("Organizational rank tasks must use fixed cycles");
   if (task.kind === "GROUP_OWNER_MEMBER_COUNT" && !task.actionUrl)
     throw new Error("A group setup guide link is required");
 }
@@ -856,6 +866,63 @@ async function seedCoreContent() {
         imageKey: pack.series,
         active: true,
         sortOrder: pack.order,
+      },
+    });
+  for (const profile of [
+    ["PROFILE_FRAME_GOLD", "Gold Halo", "frame-gold", 120],
+    ["PROFILE_FRAME_CYAN", "Cyan Pulse", "frame-cyan", 150],
+    ["PROFILE_FRAME_VIOLET", "Violet Nova", "frame-violet", 180],
+    ["PROFILE_FRAME_ROSE", "Rose Signal", "frame-rose", 210],
+    ["PROFILE_FRAME_OBSIDIAN", "Obsidian Core", "obsidian", 240],
+    ["PROFILE_FRAME_AURORA", "Aurora Crest", "aurora", 280],
+    ["PROFILE_FRAME_SOLAR", "Solar Crown", "solar", 320],
+    ["PROFILE_FRAME_ICE", "Ice Circuit", "ice", 360],
+  ] as const)
+    await prisma.shopItem.upsert({
+      where: { sku: profile[0] },
+      update: {},
+      create: {
+        sku: profile[0],
+        title: profile[1],
+        description: `Equip the ${profile[1]} custom profile frame.`,
+        category: "PROFILE",
+        genPrice: profile[3],
+        imageKey: profile[2],
+        active: true,
+        sortOrder: 60 + profile[3],
+      },
+    });
+  const organizationalRanks = [
+    [3, "SPARK", 2],
+    [10, "RISE", 7],
+    [30, "WARRIOR", 20],
+    [100, "ALPHA", 70],
+    [300, "NOBLE", 200],
+    [1_000, "VANGUARD", 700],
+    [3_000, "SOVEREIGN", 2_000],
+    [10_000, "ARCHON", 7_000],
+    [30_000, "ASCENDANT", 20_000],
+    [100_000, "TITAN", 70_000],
+    [300_000, "LEGACY", 200_000],
+    [1_000_000, "ETERNAL", 1_000_000],
+  ] as const;
+  for (const [
+    rankOrder,
+    [fixedCycles, title, rewardUsdt],
+  ] of organizationalRanks.entries())
+    await prisma.task.upsert({
+      where: { rankOrder: rankOrder + 1 },
+      update: {},
+      create: {
+        rankOrder: rankOrder + 1,
+        title: `${title} · ${fixedCycles.toLocaleString("en-US")} Fixed Cycles`,
+        description: `Check in after completing ${fixedCycles.toLocaleString("en-US")} fixed cycles, then claim your ${rewardUsdt.toLocaleString("en-US")} USDT organizational-rank reward.`,
+        kind: "CYCLES_REACHED",
+        targetValue: fixedCycles,
+        rewardUsdt: BigInt(rewardUsdt) * 1_000_000n,
+        isDaily: false,
+        startsAt: new Date(),
+        status: "PUBLISHED",
       },
     });
 }
@@ -1702,6 +1769,19 @@ app.get(
       ? Math.min(100, (currentSeason.completedDays / 30) * 100)
       : 0;
     const packageAccess = hasPackageAccess(user);
+    const completedRank = Math.max(
+      0,
+      ...tasks
+        .filter(
+          (task) =>
+            task.rankOrder &&
+            task.claims.some((claim) => Boolean(claim.settledAt)),
+        )
+        .map((task) => task.rankOrder ?? 0),
+    );
+    const visibleTasks = tasks.filter(
+      (task) => !task.rankOrder || task.rankOrder <= completedRank + 2,
+    );
     const profileStyles = [
       "lion",
       ...new Set(
@@ -1730,6 +1810,7 @@ app.get(
         totalDeposited: user.totalDeposited.toString(),
         totalWithdrawn: user.totalWithdrawn.toString(),
         level: levelForXp(user.xp),
+        organizationalRank: completedRank,
       },
       balances: {
         gen: (await accountBalance(genAccount.id)).toString(),
@@ -1741,9 +1822,12 @@ app.get(
         eligibleSeasonTwo: Boolean(currentSeason),
         rewardMilestones: [],
       },
-      tasks: tasks.map((task) => ({
+      tasks: visibleTasks.map((task) => ({
         ...task,
-        locked: !packageAccess || taskLocked(task, currentSeasonDay, now),
+        locked:
+          !packageAccess ||
+          taskLocked(task, currentSeasonDay, now) ||
+          Boolean(task.rankOrder && task.rankOrder > completedRank + 1),
         claimed: task.claims.some(
           (claim) =>
             claim.claimKey === (task.isDaily ? dailyKey : "once") &&
@@ -3121,7 +3205,7 @@ app.post(
         action: "TASK_CREATED",
         entityType: "Task",
         entityId: task.id,
-        after: task,
+        after: financialJson(task),
       },
     });
     return task;
@@ -3147,8 +3231,8 @@ app.patch(
         action: "TASK_UPDATED",
         entityType: "Task",
         entityId: task.id,
-        before,
-        after: task,
+        before: financialJson(before),
+        after: financialJson(task),
       },
     });
     return task;
@@ -3172,7 +3256,7 @@ app.delete(
           action: "TASK_ARCHIVED",
           entityType: "Task",
           entityId: before.id,
-          before,
+          before: financialJson(before),
         },
       });
       return { ok: true, archived: true };

@@ -129,6 +129,17 @@ export async function claimTask(
           (task.startsAt > now || (task.endsAt && task.endsAt <= now)))
       )
         throw new Error("Task unavailable");
+      if (task.rankOrder) {
+        const completed = await tx.taskClaim.count({
+          where: {
+            userId,
+            settledAt: { not: null },
+            task: { rankOrder: { lt: task.rankOrder } },
+          },
+        });
+        if (completed !== task.rankOrder - 1)
+          throw new Error("Complete the previous organizational rank first.");
+      }
       let claimKey = task.isDaily ? seasonDayKey(now) : "once";
       let activitySince = task.startsAt;
       if (task.isDaily) {

@@ -193,11 +193,12 @@ model Task {
   actionUrl String?
   channelChatId String?
   targetValue Int @default(1)
+  rankOrder Int? @unique
   dayNumber Int?
   gameKey String?
   rewardGen Int @default(0)
   rewardXp Int @default(0)
-  rewardUsdt Int @default(0)
+  rewardUsdt BigInt @default(0)
   isDaily Boolean @default(false)
   startsAt DateTime
   endsAt DateTime?
@@ -342,7 +343,7 @@ model TaskClaim {
   verifiedAt DateTime?
   quotedGen Int?
   quotedXp Int?
-  quotedUsdt Int?
+  quotedUsdt BigInt?
   settledAt DateTime?
   createdAt DateTime @default(now())
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)

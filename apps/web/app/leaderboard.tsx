@@ -1,7 +1,60 @@
-'use client';
-import {useEffect,useState} from 'react';
-export function Leaderboard({request}:{request:<T>(path:string,init?:RequestInit)=>Promise<T>}){
- const [mode,setMode]=useState('individual'),[data,setData]=useState<{rows:{rank:string;name:string;amount?:string;members?:string}[];me:{rank:string}|null}|null>(null),[error,setError]=useState('');
- useEffect(()=>{let live=true;setData(null);setError('');const load=()=>request<NonNullable<typeof data>>(mode==='team'?'/v1/team-leaderboard':'/v1/commission-leaderboard').then(r=>{if(live)setData(r);}).catch(e=>{if(live)setError(e.message);});void load();const timer=setInterval(load,30000);return()=>{live=false;clearInterval(timer);};},[mode]);
- return <section className="member-panel"><h2>Leaderboard</h2><div className="shop-categories">{['individual','team'].map(m=><button key={m} aria-pressed={mode===m} onClick={()=>setMode(m)}>{m==='team'?'Teams':'Individuals'}</button>)}</div><p>{mode==='team'?'Ranked by total referral team members.':'Ranked by credited binary commissions in USDT.'}</p><h3>Your rank: {data?.me?.rank??'—'}</h3><p role="status">{error||(!data?'Loading rankings…':'')}</p>{data?.rows.map((r,i)=><article key={i} style={{display:'flex',justifyContent:'space-between',gap:12,borderColor:i<3?'#ae9054':undefined}}><strong>#{r.rank} · {r.name}</strong><span>{mode==='team'?`${r.members} members`:`${(Number(r.amount??0)/1000000).toLocaleString('en-US')} USDT`}</span></article>)}</section>;
+"use client";
+import { useEffect, useState } from "react";
+type RankRow = { rank: number; name: string; amount: string };
+type Board = {
+  organizationalRank: number;
+  organizationalTitle: string;
+  me: { rank: number | null };
+  rows: RankRow[];
+};
+export function Leaderboard({
+  request,
+}: {
+  request: <T>(path: string, init?: RequestInit) => Promise<T>;
+}) {
+  const [data, setData] = useState<Board | null>(null),
+    [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    const load = () =>
+      request<Board>("/v1/commission-leaderboard")
+        .then((value) => {
+          if (live) {
+            setData(value);
+            setError("");
+          }
+        })
+        .catch((e) => live && setError(e.message));
+    void load();
+    const timer = setInterval(load, 30000);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, []);
+  const medal = (rank: number) =>
+    rank === 1 ? "GOLD" : rank === 2 ? "SILVER" : rank === 3 ? "BRONZE" : "";
+  return (
+    <section className="member-panel rank-leaderboard">
+      <small>ORGANIZATIONAL RANK</small>
+      <h2>{data?.organizationalTitle ?? "Loading rank…"}</h2>
+      <p>
+        Only members in your current organizational rank compete here. Ranking
+        is based on total credited USDT income.
+      </p>
+      <h3>Your position: {data?.me.rank ?? "—"}</h3>
+      <p role="status">{error || (!data ? "Loading rankings…" : "")}</p>
+      {data?.rows.map((row) => (
+        <article key={row.rank} className={medal(row.rank).toLowerCase()}>
+          <strong>
+            #{row.rank} · {row.name}
+          </strong>
+          <span>
+            {medal(row.rank) && <b>{medal(row.rank)} · </b>}
+            {(Number(row.amount) / 1_000_000).toLocaleString("en-US")} USDT
+          </span>
+        </article>
+      ))}
+    </section>
+  );
 }
