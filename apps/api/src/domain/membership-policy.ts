@@ -6,6 +6,6 @@ export function requiresMembership(method: string, route: string) {
     /^\/v1\/shop\/[^/]+\/purchase$/.test(route) ||
     /^\/v1\/auctions\/[^/]+\/bids$/.test(route) ||
     /^\/v1\/lottery\/[^/]+\/enter$/.test(route) ||
-    route === '/v1/payments/package-intents' || route === '/v1/payments/season-intents'
+    route === '/v1/payments/package-intents'
   );
 }

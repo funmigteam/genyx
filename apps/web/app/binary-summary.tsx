@@ -30,18 +30,20 @@ export function BinarySummary({ request }: { request: Request }) {
   }, []);
   const usd = (s: string) =>
     (Number(s) / 1000000).toLocaleString("en-US", { maximumFractionDigits: 6 });
-  const cycleVolume = stats ? Number(stats.cycleVolume) / 1_000_000 : 0;
-  const cycleReward = stats ? Number(stats.cycleReward) / 1_000_000 : 0;
+  const cycleVolume = stats ? Number(stats.cycleVolume) / 1_000_000 : 10;
+  const cycleReward = stats ? Number(stats.cycleReward) / 1_000_000 : 1;
   return (
     <section className="binary-summary">
       <h3>1 CYCLE FIXED = 1 USDT</h3>
       <details>
         <summary>Cycle calculation</summary>
         <p>
-          Each fixed cycle matches {cycleVolume} USDT volume on both lines and
-          credits {cycleReward} USDT, subject to daily and max-cap limits. Team
-          volume remains visible as lifetime volume; unmatched operational
-          volume stays ready for the next cycle.
+          When a package is purchased through a referral link, Fixed Cycles are
+          generated according to the package and referral tables. Every $11 in
+          eligible volume equals 1 Fixed Cycle, worth 1 USDT. Each cycle
+          releases {cycleReward} USDT by matching {cycleVolume} USDT in each
+          line, subject to daily limits and Max Cap. Lifetime team volume
+          remains visible, and unmatched volume carries over to the next cycle.
         </p>
       </details>
       {stats && (

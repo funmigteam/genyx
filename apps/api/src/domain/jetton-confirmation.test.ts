@@ -9,7 +9,17 @@ describe('payout notification verification', () => {
   it('accepts the exact notification', () => expect(findPayoutNotification(fixture(), expected)).toBe('confirmed'));
   it('rejects unrelated amounts and queries', () => { expect(findPayoutNotification(fixture(), { ...expected, amount: 99n })).toBeNull(); expect(findPayoutNotification(fixture(), { ...expected, queryId: 43n })).toBeNull(); });
   it('rejects a fake token wallet', () => expect(findPayoutNotification(fixture(), { ...expected, recipientJetton: sender })).toBeNull());
-  it('rejects emulation and failed transactions', () => { const t = fixture(); t.emulated = true; expect(findPayoutNotification(t, expected)).toBeNull(); t.emulated = false; t.transaction.aborted = true; expect(findPayoutNotification(t, expected)).toBeNull(); });
+  it('rejects emulated and bounced notifications', () => { const t = fixture(); t.emulated = true; expect(findPayoutNotification(t, expected)).toBeNull(); t.emulated = false; t.transaction.inMsg!.bounced = true; expect(findPayoutNotification(t, expected)).toBeNull(); });
+  it('accepts a notification the recipient W5 wallet aborted, so the payout is not re-sent', () => { const t = fixture(); t.transaction.success = false; t.transaction.aborted = true; expect(findPayoutNotification(t, expected)).toBe('confirmed'); });
+  it('accepts the completed internal transfer at the recipient Jetton wallet, but not an aborted one', () => {
+    const t = fixture();
+    t.transaction.account = { address: recipientJetton } as never;
+    t.transaction.inMsg!.source = { address: new Address(0, Buffer.alloc(32, 9)) } as never;
+    t.transaction.inMsg!.rawBody = beginCell().storeUint(0x178d4519, 32).storeUint(42, 64).storeCoins(100n).storeAddress(sender).endCell();
+    expect(findPayoutNotification(t, expected)).toBe('confirmed');
+    t.transaction.aborted = true;
+    expect(findPayoutNotification(t, expected)).toBeNull();
+  });
   it('does not accept a wallet transaction alone', () => { const t = fixture(); t.transaction.inMsg = undefined; expect(findPayoutNotification(t, expected)).toBeNull(); });
 });
 describe('deposit notification verification', () => {
@@ -30,6 +40,10 @@ describe('deposit notification verification', () => {
     expect(findDepositNotification(deposit(), { ...invoice, comment: 'GENYX:other' })).toBeNull();
     expect(findDepositNotification(deposit(), { ...invoice, amount: 101n })).toBeNull();
     expect(findDepositNotification(deposit(), { ...invoice, recipientJetton: sender })).toBeNull();
+  });
+  it('accepts an authentic notification the treasury wallet aborted for lack of gas', () => {
+    const trace = deposit(); trace.transaction.success = false; trace.transaction.aborted = true;
+    expect(findDepositNotification(trace, invoice)).toBe('confirmed');
   });
   it('rejects emulated or bounced deposits', () => {
     const trace = deposit(); trace.emulated = true;

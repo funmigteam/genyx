@@ -1,5 +1,6 @@
 'use client';
 import { useRef, useState } from 'react';
+import { TonConnectPay, type TonConnectTransfer } from './ton-connect-pay';
 type Intent = { id: string; amountUsdc: string; treasuryAddress: string; jettonMasterAddress: string; expiresAt: string };
 const normalize = (value: string) => value.replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/٫/g, '.');
 export function WalletTopup({ request, changed, balance }: { request: <T,>(path: string, init?: RequestInit) => Promise<T>; changed: () => Promise<void>; balance: string }) {
@@ -19,7 +20,8 @@ export function WalletTopup({ request, changed, balance }: { request: <T,>(path:
       <div className="wallet-presets">{[1,5,10,25].map(n => <button key={n} type="button" disabled={busy} aria-pressed={amount === String(n)} onClick={() => setAmount(String(n))}>{n} USDT</button>)}</div>
       <small>Minimum 1 USDT · Use the TON network only. Wallet network fees are separate.</small><button className="primary" disabled={busy || !valid}>{busy ? 'Creating payment…' : 'Continue to charge wallet'}</button>
     </form> : <div className="wallet-payment-details"><h3>Pay {Number(intent.amountUsdc)} USDT</h3><p>Recipient</p><code>{intent.treasuryAddress}</code><p>Expires {new Date(intent.expiresAt).toLocaleString()}</p>
-      <a className="mission-link-button" target="_blank" rel="noopener noreferrer" href={`https://app.tonkeeper.com/transfer/${encodeURIComponent(intent.treasuryAddress)}?jetton=${encodeURIComponent(intent.jettonMasterAddress)}&amount=${BigInt(intent.amountUsdc.split('.')[0]) * 1000000n + BigInt((intent.amountUsdc.split('.')[1] ?? '').padEnd(6, '0'))}&text=${encodeURIComponent(`GENYX:${intent.id}`)}`}>Pay in Tonkeeper</a>
+      <TonConnectPay loadTransfer={address => request<TonConnectTransfer>(`/v1/payments/${intent.id}/ton-connect-transfer`, { method: 'POST', body: JSON.stringify({ address }) })} />
+      <a className="mission-link-button" target="_blank" rel="noopener noreferrer" href={`https://app.tonkeeper.com/transfer/${encodeURIComponent(intent.treasuryAddress)}?jetton=${encodeURIComponent(intent.jettonMasterAddress)}&amount=${BigInt(intent.amountUsdc.split('.')[0]) * 1000000n + BigInt((intent.amountUsdc.split('.')[1] ?? '').padEnd(6, '0'))}&text=${encodeURIComponent(`GENYX:${intent.id}`)}`}>Or pay manually in Tonkeeper</a>
       <p role="status">After payment, your balance is increased automatically after on-chain confirmation. No transaction hash is needed.</p><button type="button" onClick={() => { setIntent(null); setAmount(''); void changed(); }}>I have paid — check my balance</button>
     </div>}<p role="status">{message}</p>
   </section>;

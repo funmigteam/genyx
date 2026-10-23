@@ -1,11 +1,12 @@
 import { Prisma, LedgerKind } from '@prisma/client';
 import { prisma } from '../prisma.js';
 import { binarySettlement, binaryCyclePolicy, seasonDayKey } from '../domain/economics-v2.js';
-import { levelForXp } from '../domain/progression.js';
+import { dailyBinaryLimitForLevel } from '../domain/ranks.js';
+import { rankLevel } from './ranks.js';
 import { creditRewardInTransaction } from './rewards.js';
 import { openingActive } from './package-pricing.js';
 
-async function cyclePolicy(tx: Prisma.TransactionClient | typeof prisma, now = new Date()) {
+export async function cyclePolicy(tx: Prisma.TransactionClient | typeof prisma, now = new Date()) {
   const settings = await tx.systemSetting.findMany({ where: { key: { in: ['opening_started_at', 'opening_extra_days'] } } });
   const setting = (key: string) => settings.find(row => row.key === key)?.value;
   return binaryCyclePolicy(openingActive(setting('opening_started_at'), Number(setting('opening_extra_days') ?? 0), now));
@@ -70,8 +71,8 @@ export async function settleBinary(userId: string, now = new Date()) {
     const position = await tx.binaryPosition.findUniqueOrThrow({ where: { userId } });
     const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
     if (!user.activePackageCode) return null;
-    const day = seasonDayKey(now), level = levelForXp(user.xp).level;
-    const limit = BigInt(level <= 10 ? 100 : level <= 20 ? 300 : 1000) * 1000000n;
+    const day = seasonDayKey(now), level = await rankLevel(tx, userId);
+    const limit = dailyBinaryLimitForLevel(level);
     const sum = await tx.binaryReceipt.aggregate({ where: { userId, day }, _sum: { credited: true } });
     const allowance = limit > (sum._sum.credited ?? 0n) ? limit - (sum._sum.credited ?? 0n) : 0n;
     const result = binarySettlement(position.leftVolume, position.rightVolume, position.slots, allowance, await cyclePolicy(tx, now));

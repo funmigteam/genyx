@@ -28,3 +28,14 @@
 .entry-welcome :is(a,button,input,summary):focus-visible{outline:3px solid #ffe096;outline-offset:3px}
 @media(max-width:480px){.profile-settings.entry-welcome{padding:18px 16px;border-radius:20px}.entry-welcome .entry-heading{gap:10px}.entry-welcome .entry-heading h2{font-size:20px}.entry-welcome .entry-heading small{font-size:8px}.entry-welcome .entry-intro{margin-bottom:18px}}
 @media(prefers-reduced-motion:reduce){.entry-welcome a.entry-channel{transition:none}}
+.direct-referral-card,.payout-pool-card{margin:12px 0;padding:14px;border:1px solid #3d5875;border-radius:16px;background:linear-gradient(145deg,#132036,#0d1726);display:grid;gap:10px}
+.direct-referral-card small,.payout-pool-card small{font-size:10px;letter-spacing:.1em;color:#8dffb0}
+.direct-referral-card p,.payout-pool-card p{margin:4px 0 0;font-size:12px;color:#a9b4cc}
+.direct-referral-figures{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.direct-referral-figures article{padding:10px;border-radius:12px;background:#0f1d30;display:grid;gap:2px}
+.direct-referral-figures small{color:#9aa6c2;letter-spacing:0}
+.direct-referral-figures b{font-size:18px;font-variant-numeric:tabular-nums}
+.direct-referral-figures b span,.payout-pool-card b span{font-size:11px;color:#9aa6c2}
+.payout-pool-card{border-color:#ffd36b66;background:radial-gradient(circle at 100% 0,#d9a44130,transparent 50%),#0d1726}
+.payout-pool-card small{color:#ffd36b}
+.payout-pool-card b{font-size:26px;color:#ffd36b;font-variant-numeric:tabular-nums}

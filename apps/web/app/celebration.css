@@ -1,0 +1,62 @@
+.celebration { --accent:#6ce4dc; --glow:#6ce4dc55; position:relative; width:min(420px,92vw); border:1px solid var(--accent); border-radius:28px; background:radial-gradient(circle at 50% 0,var(--glow),#141228 62%); color:#f6f2ff; padding:28px 22px 24px; text-align:center; box-shadow:0 24px 100px #000b, 0 0 60px var(--glow); overflow:hidden; animation:celebration-in .55s cubic-bezier(.2,1.4,.4,1) both; }
+.celebration::backdrop { background:#070a16d9; backdrop-filter:blur(7px); animation:celebration-fade .3s ease both; }
+.celebration-prize { --accent:#ffd778; --glow:#ffc94a4d; }
+.celebration-withdraw { --accent:#7cc4ff; --glow:#4aa8ff47; }
+.celebration-unlock { --accent:#c99aff; --glow:#9a61e84d; }
+.celebration-purchase { --accent:#6ce4dc; --glow:#3fd6c94d; }
+.celebration-invest { --accent:#8dffb0; --glow:#3fdc7a47; }
+.celebration-refund { --accent:#ffd778; --glow:#ffb34a3d; }
+.celebration-gift { --accent:#ff9ad5; --glow:#ff5cb24a; }
+.celebration-close { position:absolute; right:10px; top:10px; z-index:2; min-width:44px; min-height:44px; background:transparent; color:#fff; border:0; font-size:26px; cursor:pointer; }
+.celebration-eyebrow { display:block; color:var(--accent); font-weight:800; letter-spacing:.16em; margin:6px 0 4px; font-size:12px; }
+.celebration h2 { margin:6px 0 10px; font-size:26px; line-height:1.2; }
+.celebration-amount { margin:6px 0; font-size:20px; color:var(--accent); }
+.celebration-amount strong { font-size:44px; font-weight:900; text-shadow:0 0 24px var(--glow); }
+.celebration-detail { margin:8px auto 18px; max-width:32ch; color:#d6d0ea; line-height:1.55; font-size:14px; }
+.celebration-action { min-height:48px; width:100%; border:0; border-radius:14px; background:var(--accent); color:#120f22; font-weight:800; font-size:16px; cursor:pointer; }
+.celebration-action:focus-visible, .celebration-close:focus-visible { outline:3px solid #fff; outline-offset:3px; }
+
+.celebration-scene { position:relative; height:120px; margin:0 auto 4px; }
+/* prize / refund: falling coins */
+.celebration-scene .coin { position:absolute; top:-20px; border-radius:50%; background:radial-gradient(circle at 35% 30%,#fff6c8,#ffcf4a 45%,#c98a12); box-shadow:0 0 10px #ffcf4a99; animation:coin-fall linear infinite; }
+.scene-refund .coin { animation-name:coin-return; top:auto; bottom:-20px; }
+.scene-refund .wallet-glyph { position:absolute; left:50%; top:20px; transform:translateX(-50%); font-size:58px; color:var(--accent); animation:pulse 1.4s ease-in-out infinite; }
+/* withdraw: launch */
+.scene-withdraw .rocket { position:absolute; left:50%; bottom:10px; font-size:48px; color:var(--accent); transform:translateX(-50%) rotate(-90deg); animation:launch 1.6s cubic-bezier(.5,0,.3,1) infinite; }
+.scene-withdraw .trail { position:absolute; left:50%; bottom:0; width:6px; height:70px; margin-left:-3px; border-radius:6px; background:linear-gradient(to top,transparent,var(--accent)); opacity:.7; animation:trail 1.6s ease-out infinite; }
+.scene-withdraw .trail.delay { animation-delay:.4s; width:3px; margin-left:12px; }
+/* unlock: gate opens */
+.scene-unlock .gate { position:absolute; top:10px; width:60px; height:100px; background:linear-gradient(#3a2a63,#221a3f); border:2px solid var(--accent); }
+.scene-unlock .gate.left { right:50%; border-radius:12px 0 0 12px; transform-origin:left; animation:gate-left 1.2s .3s ease forwards; }
+.scene-unlock .gate.right { left:50%; border-radius:0 12px 12px 0; transform-origin:right; animation:gate-right 1.2s .3s ease forwards; }
+.scene-unlock .key { position:absolute; left:50%; top:38px; transform:translateX(-50%) scale(0); font-size:42px; color:#ffe19a; animation:key-pop .7s 1.1s cubic-bezier(.2,1.6,.4,1) forwards; }
+/* purchase: activation rings */
+.scene-purchase .ring { position:absolute; left:50%; top:50%; width:60px; height:60px; margin:-30px; border-radius:50%; border:3px solid var(--accent); animation:ring 1.8s ease-out infinite; }
+.scene-purchase .ring.delay { animation-delay:.6s; } .scene-purchase .ring.delay2 { animation-delay:1.2s; }
+.scene-purchase .core { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:64px; height:64px; line-height:64px; border-radius:50%; background:var(--accent); color:#120f22; font-size:34px; animation:celebration-in .6s cubic-bezier(.2,1.6,.4,1) both; }
+/* invest: growth bars */
+.scene-invest { display:flex; align-items:flex-end; justify-content:center; gap:10px; }
+.scene-invest span { width:22px; border-radius:8px 8px 3px 3px; background:linear-gradient(to top,#2c8a52,var(--accent)); transform-origin:bottom; animation:grow .9s cubic-bezier(.2,1.3,.4,1) both; box-shadow:0 0 14px var(--glow); }
+/* gift: box bursts */
+.scene-gift .box { position:absolute; left:50%; top:22px; font-size:60px; transform:translateX(-50%); animation:shake .55s ease-in-out 2; }
+.scene-gift .spark { position:absolute; left:50%; top:55px; width:8px; height:8px; border-radius:50%; background:var(--accent); opacity:0; animation:burst 1s ease-out forwards; }
+
+@keyframes celebration-in { from { opacity:0; transform:scale(.6) translateY(30px); } to { opacity:1; transform:none; } }
+@keyframes celebration-fade { from { opacity:0; } }
+@keyframes coin-fall { 0% { transform:translateY(0) rotateY(0); opacity:0; } 10% { opacity:1; } 100% { transform:translateY(150px) rotateY(720deg); opacity:0; } }
+@keyframes coin-return { 0% { transform:translateY(0) scale(1); opacity:0; } 15% { opacity:1; } 100% { transform:translateY(-110px) scale(.3); opacity:0; } }
+@keyframes pulse { 50% { transform:translateX(-50%) scale(1.15); } }
+@keyframes launch { 0% { transform:translate(-50%,0) rotate(-90deg); opacity:0; } 15% { opacity:1; } 80% { opacity:1; } 100% { transform:translate(-50%,-130px) rotate(-90deg); opacity:0; } }
+@keyframes trail { 0% { transform:scaleY(.2); opacity:0; } 40% { opacity:.8; } 100% { transform:scaleY(1.4) translateY(-60px); opacity:0; } }
+@keyframes gate-left { to { transform:perspective(300px) rotateY(75deg); } }
+@keyframes gate-right { to { transform:perspective(300px) rotateY(-75deg); } }
+@keyframes key-pop { to { transform:translateX(-50%) scale(1) rotate(360deg); } }
+@keyframes ring { from { transform:scale(.6); opacity:1; } to { transform:scale(2.4); opacity:0; } }
+@keyframes grow { from { transform:scaleY(0); } }
+@keyframes shake { 25% { transform:translateX(-50%) rotate(-12deg); } 75% { transform:translateX(-50%) rotate(12deg); } }
+@keyframes burst { 0% { opacity:1; transform:rotate(var(--angle)) translateX(0); } 100% { opacity:0; transform:rotate(var(--angle)) translateX(90px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .celebration, .celebration *, .celebration::backdrop { animation:none !important; }
+  .scene-unlock .key { transform:translateX(-50%) scale(1); }
+}

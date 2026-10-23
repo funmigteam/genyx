@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { parseUsdt } from './domain/money.js';
 
 const envSchema = z.object({
   DATABASE_URL: z.string().url(), REDIS_URL: z.string().url().optional(),
@@ -14,11 +15,18 @@ const envSchema = z.object({
   TON_NETWORK: z.enum(['mainnet', 'testnet']).default('mainnet'),
   AUTOMATION_ENABLED: z.enum(['true', 'false']).default('false').transform(value => value === 'true'),
   AUTOMATION_POLL_INTERVAL_MS: z.coerce.number().int().min(15_000).max(300_000).default(30_000),
-  PAYOUT_MODE: z.enum(['MANUAL', 'AUTOMATIC']).default('MANUAL')
+  PAYOUT_MODE: z.enum(['MANUAL', 'AUTOMATIC']).default('MANUAL'),
+  // Withdrawals up to this gross USDT amount are paid without admin review.
+  // Larger requests wait for an admin approval, after which the worker pays them.
+  AUTO_PAYOUT_MAX_USDT: z.string().default('50').transform(parseUsdt)
 });
-export const env = envSchema.parse(process.env);
-// Manual-only release: never broadcast withdrawals, even with a stale production env.
-export const payoutAutomationReady: boolean = false;
+// An empty `KEY=""` line means "not configured", not an invalid value.
+export const env = envSchema.parse(Object.fromEntries(Object.entries(process.env).filter(([, value]) => value !== '')));
+export const payoutAutomationReady: boolean = env.PAYOUT_MODE === 'AUTOMATIC' && Boolean(
+  env.TONAPI_KEY && env.TON_USDC_MASTER_ADDRESS && env.PAYOUT_WALLET_ADDRESS && env.PAYOUT_SIGNING_KEY_FILE
+);
+if (env.PAYOUT_MODE === 'AUTOMATIC' && !payoutAutomationReady)
+  throw new Error('PAYOUT_MODE=AUTOMATIC requires TONAPI_KEY, TON_USDC_MASTER_ADDRESS, PAYOUT_WALLET_ADDRESS and PAYOUT_SIGNING_KEY_FILE');
 export const bootstrapAdminTelegramIds = new Set(
   (env.ADMIN_TELEGRAM_IDS ?? '').split(',').map(value => value.trim()).filter(Boolean)
 );
@@ -27,7 +35,7 @@ export const bootstrapAdminTelegramIds = new Set(
 // are only used to seed settings and never accepted from clients.
 export const economics = {
   timezone: 'Europe/Istanbul', dailyResetHour: 12,
-  withdrawal: { minimumUsdc: 1_000_000n, feeBps: 150, maximumPerDay: 2 },
+  withdrawal: { minimumUsdc: 1_000_000n, feeBps: 150 },
   packages: [
     { code: 'BRONZE', economic: 10_000_000n, ownerPool: 1_000_000n, gen: 100n },
     { code: 'SILVER', economic: 30_000_000n, ownerPool: 3_000_000n, gen: 310n },

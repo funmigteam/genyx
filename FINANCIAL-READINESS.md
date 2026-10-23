@@ -4,6 +4,10 @@ This source is not yet approved for unattended production payouts.
 
 ## Changes implemented
 
+- Payments are sent through TON Connect with a server-built Jetton transfer (`POST /v1/payments/:id/ton-connect-transfer`): recipient, exact amount and invoice comment are fixed, the wallet only approves. The Tonkeeper deep link remains as a manual fallback. Deposits arriving after invoice expiry, and purchases whose settlement fails three polls in a row, are credited to the payer's in-app USDT balance (audited) so the deposit cursor never stalls. Not yet exercised with a live wallet.
+
+- Automatic payouts are now opt-in via `PAYOUT_MODE=AUTOMATIC` (previously hard-disabled). The API refuses to boot if the signer settings are incomplete or the mnemonic does not match `PAYOUT_WALLET_ADDRESS`. Withdrawals up to `AUTO_PAYOUT_MAX_USDT` (default 50) are approved instantly; larger ones are paid by the worker after admin approval. Manual hash entry is rejected in automatic mode to prevent double payment. The release blockers below still apply: run a full testnet cycle before enabling on mainnet.
+
 - Deposit worker now scans treasury transactions in ascending logical-time pages with a persisted network/treasury/master cursor, matches invoice comments and authentic jetton notifications, and invokes payment settlement without manual hash submission. It does not advance past a settlement failure. Out-of-window payments are audited. API build and 53 unit tests passed; the new scanning path has not been exercised against a live provider. Per-invoice immutable address snapshots and reconciliation of blocked invoices remain required.
 
 - Ledger writes reject negative/double-sided entries, mixed currencies, missing accounts and conflicting idempotency retries. Reordered identical entries remain idempotent. PostgreSQL tests cover these checks. Authenticated requests reload current roles; newly issued JWTs expire after one hour. Role changes and package pricing are audited atomically; package financial settings require super-admin approval. All 63 API tests passed with isolated PostgreSQL.

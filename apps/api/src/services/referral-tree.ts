@@ -1,5 +1,5 @@
 import { prisma } from '../prisma.js';
-import { levelForXp } from '../domain/progression.js';
+import { rankLevels } from './ranks.js';
 
 export async function assignSponsor(userId: string, code?: string) {
   return prisma.$transaction(async tx => {
@@ -49,7 +49,8 @@ export async function referralChildren(userId: string, parentId = userId, cursor
   ) SELECT id FROM tree WHERE id = ${parentId} LIMIT 1`;
   if (!allowed.length) throw new Error('This member is not in your referral team');
   const rows = await prisma.user.findMany({ where: { referredById: parentId, role: 'USER', activePackageCode: { not: null }, ...(cursor ? { id: { gt: cursor } } : {}) }, orderBy: { id: 'asc' }, take: 51, select: { id: true, referralCode: true, firstName: true, displayName: true, xp: true, activePackageCode: true, _count: { select: { referrals: { where: { role: 'USER', activePackageCode: { not: null } } } } } } });
-  return { rows: rows.slice(0, 50).map(row => ({ id: row.id, code: row.referralCode ?? row.id, name: row.displayName || row.firstName || 'GENYX member', level: levelForXp(row.xp).level, active: Boolean(row.activePackageCode), children: row._count.referrals })), next: rows.length > 50 ? rows[49].id : null };
+  const levels = await rankLevels(prisma, rows.map(row => row.id));
+  return { rows: rows.slice(0, 50).map(row => ({ id: row.id, code: row.referralCode ?? row.id, name: row.displayName || row.firstName || 'GENYX member', level: levels.get(row.id) ?? 0, active: Boolean(row.activePackageCode), children: row._count.referrals })), next: rows.length > 50 ? rows[49].id : null };
 }
 
 export async function binaryLanes(userId: string) {

@@ -6,11 +6,10 @@ import { walletChallenge, saveProvenWallet, proofDigest } from './wallet-proof.j
 import { LedgerKind } from '@prisma/client';
 import { prisma } from '../prisma.js';
 import { creditReward } from './rewards.js';
-import { postLedger } from './ledger.js';
+import { accountBalance, postLedger } from './ledger.js';
 import { claimTask, approveTaskClaim } from './task-rewards.js';
 import { recordBinaryVolume, settleBinary } from './binary.js';
-import { createAuction, placeAuctionBid, advanceAuction, auctionPaymentIntent, confirmAuctionPayment } from './auctions.js';
-import { enrollFreeSeason, advanceSeasonDay, claimSeasonGift, useSeasonGrace, extendCurrentSeasonDay, createSeasonIntent, confirmSeasonPayment } from './seasons.js';
+import { createAuction, placeAuctionBid, advanceAuction, claimAuctionAward } from './auctions.js';
 
 // Explicit opt-in: never use the project's configured database implicitly.
 const integration = process.env.GENYX_ISOLATED_TEST_DB === 'true' ? it : it.skip;
@@ -42,7 +41,14 @@ integration('task conditions enforce levels, membership, game rounds and idempot
   const level = await prisma.task.create({ data: { title: 'Level gate', kind: 'LEVEL_REACHED', targetValue: 2, status: 'PUBLISHED', startsAt: new Date(0), rewardXp: 10 } });
   await expect(claimTask(user.id, level.id)).rejects.toThrow('requirement not reached');
   expect(await prisma.taskClaim.count({ where: { userId: user.id } })).toBe(0);
+  // Level is the organizational rank: XP alone never levels up; two claimed ranks make level 2.
+  await prisma.user.update({ where: { id: user.id }, data: { xp: 1_000_000n } });
+  await expect(claimTask(user.id, level.id)).rejects.toThrow('requirement not reached');
   await prisma.user.update({ where: { id: user.id }, data: { xp: 250n } });
+  for (const rankOrder of [1, 2]) {
+    const rank = await prisma.task.upsert({ where: { rankOrder }, update: {}, create: { rankOrder, title: `Rank ${rankOrder}`, kind: 'CYCLES_REACHED', targetValue: 1, isDaily: false, status: 'PUBLISHED', startsAt: new Date(0) } });
+    await prisma.taskClaim.create({ data: { taskId: rank.id, userId: user.id, claimKey: 'once', settledAt: new Date() } });
+  }
   const first = await claimTask(user.id, level.id);
   expect(first.settledAt).not.toBeNull();
   expect((await claimTask(user.id, level.id)).id).toBe(first.id);
@@ -78,9 +84,9 @@ integration('credits once, caps rewards and leaves an unfunded request uncommitt
   expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).capConsumed).toBe(70000000n);
   expect(await prisma.ledgerTransaction.count({ where: { idempotencyKey: `reward:${first.id}` } })).toBe(1);
   await expect(creditReward({ ...input, amount: 1n })).rejects.toThrow('Conflicting');
-  const other = await prisma.user.create({ data: { telegramId: BigInt(Date.now()) + 1n, maxCap: 1000000000n } });
+  const other = await prisma.user.create({ data: { telegramId: BigInt(Date.now()) + 1n, maxCap: 100_000_000_000_000n } });
   const failed = randomUUID();
-  await expect(creditReward({ ...input, userId: other.id, amount: 1000000000n, idempotencyKey: failed })).rejects.toThrow('insufficient');
+  await expect(creditReward({ ...input, userId: other.id, amount: 100_000_000_000_000n, idempotencyKey: failed })).rejects.toThrow('insufficient');
   expect(await prisma.rewardReceipt.findUnique({ where: { idempotencyKey: failed } })).toBeNull();
   expect((await prisma.user.findUniqueOrThrow({ where: { id: other.id } })).capConsumed).toBe(0n);
 });
@@ -121,7 +127,7 @@ integration('task approval atomically credits snapshots, applies multipliers and
   const balance = await prisma.ledgerEntry.aggregate({ where: { accountId: gen.id }, _sum: { credit: true } });
   expect(balance._sum.credit).toBe(20n);
 });
-integration('confirmed purchases propagate once and settle 60/60 into $15 and one voucher', async () => {
+integration('confirmed purchases propagate once and settle 60/60 into $5 and one voucher', async () => {
   const root = await prisma.user.create({ data: { telegramId: BigInt(Date.now()) + 300n, activePackageCode: 'BRONZE', maxCap: 70000000n } });
   const pool = await prisma.ledgerAccount.upsert({ where: { code: 'SYSTEM:USDC:BINARY' }, create: { code: 'SYSTEM:USDC:BINARY', currency: 'USDC', type: 'RESERVE' }, update: {} });
   const source = await prisma.ledgerAccount.create({ data: { code: `TEST:${randomUUID()}`, currency: 'USDC', type: 'RESERVE' } });
@@ -133,114 +139,29 @@ integration('confirmed purchases propagate once and settle 60/60 into $15 and on
     await prisma.$transaction(tx => recordBinaryVolume(tx, payment.id));
   }
   expect(await prisma.binaryVolume.count({ where: { userId: root.id } })).toBe(2);
+  // 10 USDT per line is one cycle worth 1 USDT; every sixth cycle is a voucher.
   const receipt = await settleBinary(root.id);
-  expect(receipt?.credited).toBe(15000000n); expect(receipt?.vouchers).toBe(2);
+  expect(receipt?.credited).toBe(5000000n); expect(receipt?.vouchers).toBe(1);
   expect(await settleBinary(root.id)).toBeNull();
   const position = await prisma.binaryPosition.findUniqueOrThrow({ where: { userId: root.id } });
   expect(position.leftVolume).toBe(0n); expect(position.rightVolume).toBe(0n);
-  expect(position.leftLifetime).toBe(60000000n); expect(position.slots).toBe(12n);
+  expect(position.leftLifetime).toBe(60000000n); expect(position.slots).toBe(6n);
   const user = await prisma.user.findUniqueOrThrow({ where: { id: root.id } });
-  expect(user.vouchers).toBe(2); expect(user.capConsumed).toBe(15000000n);
+  expect(user.vouchers).toBe(1); expect(user.capConsumed).toBe(5000000n);
 });
 integration('binary daily cap flushes excess while preserving heavy-side remainder', async () => {
   const user = await prisma.user.create({ data: { telegramId: BigInt(Date.now()) + 600n, activePackageCode: 'DIAMOND', maxCap: 7000000000n } });
-  await prisma.binaryPosition.create({ data: { userId: user.id, leftVolume: 605000000n, rightVolume: 600000000n } });
+  await prisma.binaryPosition.create({ data: { userId: user.id, leftVolume: 1505000000n, rightVolume: 1500000000n } });
   const pool = await prisma.ledgerAccount.upsert({ where: { code: 'SYSTEM:USDC:BINARY' }, create: { code: 'SYSTEM:USDC:BINARY', currency: 'USDC', type: 'RESERVE' }, update: {} });
   const source = await prisma.ledgerAccount.create({ data: { code: `TEST:${randomUUID()}`, currency: 'USDC', type: 'RESERVE' } });
   await postLedger({ idempotencyKey: randomUUID(), kind: LedgerKind.DEPOSIT, referenceType: 'TEST', referenceId: user.id, postings: [{ accountId: source.id, debit: 100000000n }, { accountId: pool.id, credit: 100000000n }] });
   const receipt = await settleBinary(user.id);
-  expect(receipt?.credited).toBe(100000000n); expect(receipt?.retained).toBe(50000000n); expect(receipt?.vouchers).toBe(20);
+  // 150 cycles − 25 vouchers = 125 USDT, of which the 100 USDT daily limit is paid.
+  expect(receipt?.credited).toBe(100000000n); expect(receipt?.retained).toBe(25000000n); expect(receipt?.vouchers).toBe(25);
   expect((await prisma.binaryPosition.findUniqueOrThrow({ where: { userId: user.id } })).leftVolume).toBe(5000000n);
   await prisma.binaryPosition.update({ where: { userId: user.id }, data: { leftVolume: 10000000n, rightVolume: 10000000n } });
   const second = await settleBinary(user.id);
-  expect(second?.credited).toBe(0n); expect(second?.retained).toBe(3000000n);
-});
-integration('season rollover, gift replay protection, extension and per-season grace work', async () => {
-  const now = new Date('2026-09-07T09:00:00Z');
-  const user = await prisma.user.create({ data: { telegramId: BigInt(Date.now()) + 800n, activePackageCode: 'PLATINUM', maxCap: 70000000n } });
-  const task = await prisma.task.create({ data: { title: 'Season integration', isDaily: true, kind: 'DAILY_CHECKIN', startsAt: new Date(0), status: 'PUBLISHED' } });
-  const enrollment = await prisma.$transaction(tx => enrollFreeSeason(tx, user.id, now));
-  expect((await prisma.$transaction(tx => enrollFreeSeason(tx, user.id, now))).id).toBe(enrollment.id);
-  const first = await prisma.seasonDay.findUniqueOrThrow({ where: { enrollmentId_number: { enrollmentId: enrollment.id, number: 1 } } });
-  await prisma.seasonDay.update({ where: { id: first.id }, data: { requiredTaskIds: [task.id] } });
-  await expect(claimSeasonGift(user.id, first.id, now)).rejects.toThrow('Complete');
-  await claimTask(user.id, task.id, now);
-  await claimSeasonGift(user.id, first.id, now);
-  await claimSeasonGift(user.id, first.id, now);
-  expect((await prisma.seasonEnrollment.findUniqueOrThrow({ where: { id: enrollment.id } })).completedDays).toBe(1);
-  await advanceSeasonDay(first.id, first.deadline);
-  await advanceSeasonDay(first.id, first.deadline);
-  const second = await prisma.seasonDay.findUniqueOrThrow({ where: { enrollmentId_number: { enrollmentId: enrollment.id, number: 2 } } });
-  expect(second.gift).toBe(1000000n);
-  await prisma.$transaction(tx => extendCurrentSeasonDay(tx, user.id, second.opensAt));
-  expect((await prisma.seasonDay.findUniqueOrThrow({ where: { id: second.id } })).deadline.getTime()).toBe(second.deadline.getTime() + 86400000);
-  await useSeasonGrace(user.id, second.id, second.opensAt);
-  await useSeasonGrace(user.id, second.id, second.opensAt);
-  await advanceSeasonDay(second.id, new Date(second.deadline.getTime() + 86400000));
-  const third = await prisma.seasonDay.findUniqueOrThrow({ where: { enrollmentId_number: { enrollmentId: enrollment.id, number: 3 } } });
-  expect(third.gift).toBe(1000000n);
-  await expect(useSeasonGrace(user.id, third.id, third.opensAt)).rejects.toThrow('No Grace');
-  await advanceSeasonDay(third.id, third.deadline);
-  const restarted = await prisma.seasonDay.findUniqueOrThrow({ where: { enrollmentId_number: { enrollmentId: enrollment.id, number: 1 } } });
-  expect(restarted.gift).toBe(0n);
-  expect(restarted.id).not.toBe(first.id);
-  expect((await prisma.seasonDay.findUniqueOrThrow({ where: { id: first.id } })).number).toBeLessThan(0);
-  expect((await prisma.seasonEnrollment.findUniqueOrThrow({ where: { id: enrollment.id } })).graceUsed).toBe(1);
-  await prisma.seasonDay.update({ where: { id: restarted.id }, data: { requiredTaskIds: [task.id] } });
-  await claimTask(user.id, task.id, restarted.opensAt);
-  await claimSeasonGift(user.id, restarted.id, restarted.opensAt);
-  await advanceSeasonDay(restarted.id, restarted.deadline);
-  const fourth = await prisma.seasonDay.findUniqueOrThrow({ where: { enrollmentId_number: { enrollmentId: enrollment.id, number: 2 } } });
-  expect(fourth.gift).toBe(1000000n);
-  await prisma.seasonDay.update({ where: { id: fourth.id }, data: { requiredTaskIds: [task.id] } });
-  const pool = await prisma.ledgerAccount.upsert({ where: { code: 'SYSTEM:USDC:REWARD' }, create: { code: 'SYSTEM:USDC:REWARD', currency: 'USDC', type: 'RESERVE' }, update: {} });
-  const source = await prisma.ledgerAccount.create({ data: { code: `TEST:${randomUUID()}`, currency: 'USDC', type: 'RESERVE' } });
-  await postLedger({ idempotencyKey: randomUUID(), kind: LedgerKind.DEPOSIT, referenceType: 'TEST', referenceId: user.id, postings: [{ accountId: source.id, debit: 3000000n }, { accountId: pool.id, credit: 3000000n }] });
-  await claimTask(user.id, task.id, fourth.opensAt);
-  await claimSeasonGift(user.id, fourth.id, fourth.opensAt);
-  await claimSeasonGift(user.id, fourth.id, fourth.opensAt);
-  expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).capConsumed).toBe(1000000n);
-  expect(await prisma.rewardReceipt.count({ where: { idempotencyKey: `season-gift:${fourth.id}` } })).toBe(1);
-});
-integration('day-specific missions follow each enrollment rather than a calendar date', async () => {
-  const user = await prisma.user.create({ data: { telegramId: BigInt(Date.now()) + 88990n, activePackageCode: 'BRONZE' } });
-  const one = await prisma.task.create({ data: { title: 'Day one', dayNumber: 1, isDaily: true, kind: 'DAILY_CHECKIN', startsAt: new Date('2099-01-01'), status: 'PUBLISHED' } });
-  const two = await prisma.task.create({ data: { title: 'Day two', dayNumber: 2, isDaily: true, kind: 'DAILY_CHECKIN', startsAt: new Date('2099-01-01'), status: 'PUBLISHED' } });
-  const now = new Date();
-  const enrollment = await prisma.$transaction(tx=>enrollFreeSeason(tx,user.id,now));
-  const day = await prisma.seasonDay.findFirstOrThrow({where:{enrollmentId:enrollment.id,number:1}});
-  expect(day.requiredTaskIds).toContain(one.id); expect(day.requiredTaskIds).not.toContain(two.id);
-  expect((await claimTask(user.id,one.id,now)).settledAt).not.toBeNull();
-  await expect(claimTask(user.id,two.id,now)).rejects.toThrow('not in this season day');
-  await advanceSeasonDay(day.id,day.deadline);
-  const second=await prisma.seasonDay.findFirstOrThrow({where:{enrollmentId:enrollment.id,number:2}});
-  expect(second.requiredTaskIds).toContain(two.id); expect(second.requiredTaskIds).not.toContain(one.id);
-});
-integration('paid season snapshots price, posts split once and starts after the active season', async () => {
-  const user = await prisma.user.create({ data: { telegramId: BigInt(Date.now()) + 1200n, activePackageCode: 'BRONZE', maxCap: 70000000n } });
-  const first = await prisma.$transaction(tx => enrollFreeSeason(tx, user.id));
-  expect((await prisma.seasonEnrollment.findUniqueOrThrow({ where: { id: first.id } })).completedDays).toBe(0);
-  const payment = await createSeasonIntent(user.id, 2, 9000000n);
-  expect((await createSeasonIntent(user.id, 2, 12000000n)).id).toBe(payment.id);
-  await expect(prisma.$transaction(tx => confirmSeasonPayment(tx, payment.id))).rejects.toThrow('confirmation required');
-  await prisma.payment.update({ where: { id: payment.id }, data: { chainTxHash: `test-only:${randomUUID()}` } });
-  await prisma.$transaction(tx => confirmSeasonPayment(tx, payment.id));
-  await prisma.$transaction(tx => confirmSeasonPayment(tx, payment.id));
-  const ledger = await prisma.ledgerTransaction.findUniqueOrThrow({ where: { idempotencyKey: `season-payment:${payment.id}` }, include: { entries: { include: { account: true } } } });
-  expect(ledger.entries.find(entry => entry.account.code === 'SYSTEM:USDC:OWNER')?.credit).toBe(900000n);
-  expect(ledger.entries.find(entry => entry.account.code === 'SYSTEM:USDC:REWARD')?.credit).toBe(8100000n);
-  const current = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
-  expect(current.maxCap).toBe(70000000n); expect(current.totalDeposited).toBe(9000000n); expect(current.activePackageCode).toBe('BRONZE');
-  await expect(createSeasonIntent(user.id, 2, 9000000n)).rejects.toThrow('repurchased');
-  const second = await prisma.seasonEnrollment.findUniqueOrThrow({ where: { userId_season: { userId: user.id, season: 2 } } });
-  expect(second.currentDay).toBe(0);
-  expect(await prisma.seasonDay.count({ where: { enrollmentId: second.id } })).toBe(0);
-  const day = await prisma.seasonDay.findFirstOrThrow({ where: { enrollmentId: first.id } });
-  await prisma.seasonDay.update({ where: { id: day.id }, data: { number: 30 } });
-  await advanceSeasonDay(day.id, day.deadline);
-  await advanceSeasonDay(day.id, day.deadline);
-  expect((await prisma.seasonEnrollment.findUniqueOrThrow({ where: { id: second.id } })).currentDay).toBe(1);
-  expect(await prisma.seasonDay.count({ where: { enrollmentId: second.id } })).toBe(1);
+  expect(second?.credited).toBe(0n); expect(second?.retained).toBe(1000000n);
 });
 async function auctionFixture(remainingSeconds = 2, prizeXp = 20) {
   const admin = await prisma.user.create({ data: { telegramId: BigInt(Date.now()) + BigInt(Math.floor(Math.random() * 1000000000)), role: 'SUPER_ADMIN' } });
@@ -258,21 +179,6 @@ async function auctionFixture(remainingSeconds = 2, prizeXp = 20) {
   const auction = await createAuction(admin.id, { title: 'Integration auction', bidGen: 1, prizeUsdt: 10000000n, prizeGen: 10, prizeXp, remainingSeconds, endsAt: new Date(Date.now() + 60000) });
   return { auction, users };
 }
-integration.each([true, false])('paid hall entry credits GEN once, accepts numbers above 25 and rolls back unfunded entry (series=%s)', async (hasSeries) => {
-  const { auction, users } = await auctionFixture(10);
-  await prisma.auction.update({ where: { id: auction.id }, data: { series: hasSeries ? `TEST_${auction.id}` : null, entryUsdt: 1000000n } });
-  const target = await prisma.ledgerAccount.create({ data: { code: `USER:${users[0].id}:USDC:AVAILABLE`, userId: users[0].id, currency: 'USDC', type: 'AVAILABLE' } });
-  await expect(placeAuctionBid(users[0].id, auction.id, 987654n, randomUUID())).rejects.toThrow('Insufficient USDT');
-  expect(await prisma.auctionBid.count({ where: { auctionId: auction.id } })).toBe(0);
-  const source = await prisma.ledgerAccount.create({ data: { code: `TEST:${randomUUID()}`, currency: 'USDC', type: 'RESERVE' } });
-  await postLedger({ idempotencyKey: randomUUID(), kind: LedgerKind.DEPOSIT, referenceType: 'TEST', referenceId: auction.id, postings: [{ accountId: source.id, debit: 1000000n }, { accountId: target.id, credit: 1000000n }] });
-  const key = randomUUID();
-  const first = await placeAuctionBid(users[0].id, auction.id, 987654n, key);
-  expect(first.entryRewardGen).toBe('10');
-  expect((await placeAuctionBid(users[0].id, auction.id, 987654n, key)).entryRewardGen).toBe('10');
-  expect(await prisma.ledgerTransaction.count({ where: { idempotencyKey: `auction-entry-bonus:${first.id}` } })).toBe(1);
-  expect((await placeAuctionBid(users[0].id, auction.id, 123456n, randomUUID())).entryRewardGen).toBe('0');
-});
 integration('task links must be opened before claiming', async () => {
   const user = await prisma.user.create({ data: { telegramId: BigInt(Date.now()) + 998121n, activePackageCode: 'BRONZE' } });
   const task = await prisma.task.create({ data: { title: 'Open first', kind: 'EXTERNAL_LINK', actionUrl: 'https://example.com', startsAt: new Date(0), status: 'PUBLISHED' } });
@@ -280,7 +186,7 @@ integration('task links must be opened before claiming', async () => {
   await prisma.auditEvent.create({ data: { actorId: user.id, action: 'TASK_LINK_OPENED', entityType: 'Task', entityId: task.id } });
   expect((await claimTask(user.id, task.id)).settledAt).not.toBeNull();
 });
-integration('auction expires to the next unique bidder and settles its payment once with cap', async () => {
+integration('auction expires to the next unique bidder, who claims the prize minus the winning bid', async () => {
   const { auction, users } = await auctionFixture();
   const key = randomUUID();
   const firstBid = await placeAuctionBid(users[0].id, auction.id, 1n, key);
@@ -294,15 +200,13 @@ integration('auction expires to the next unique bidder and settles its payment o
   await advanceAuction(auction.id, first.expiresAt);
   const second = await prisma.auctionAward.findFirstOrThrow({ where: { auctionId: auction.id, status: 'OFFERED' } });
   expect(second.userId).toBe(users[1].id);
-  const payment = await auctionPaymentIntent(second.userId, second.id, first.expiresAt);
-  expect(payment.expectedAmount).toBe(20000n);
-  await prisma.payment.update({ where: { id: payment.id }, data: { chainTxHash: `test-only:${randomUUID()}` } });
-  await prisma.$transaction(tx => confirmAuctionPayment(tx, payment.id, first.expiresAt));
-  await prisma.$transaction(tx => confirmAuctionPayment(tx, payment.id, first.expiresAt));
-  const recipient = await prisma.user.findUniqueOrThrow({ where: { id: second.userId } });
-  expect(recipient.capConsumed).toBe(5000000n); expect(recipient.xp).toBe(20n);
-  const receipt = await prisma.rewardReceipt.findUniqueOrThrow({ where: { idempotencyKey: `auction-prize:${second.id}` } });
-  expect(receipt.retained).toBe(5000000n);
+  // An empty wallet is fine: the 0.02 USDT bid comes out of the 10 USDT prize.
+  const claimed = await claimAuctionAward(second.userId, second.id, first.expiresAt);
+  expect(claimed).toMatchObject({ chargedUsdt: 20000n, creditedUsdt: 10000000n, netUsdt: 9980000n });
+  const wallet = await prisma.ledgerAccount.findUniqueOrThrow({ where: { code: `USER:${second.userId}:USDC:AVAILABLE` } });
+  expect(await accountBalance(wallet.id)).toBe(9980000n);
+  await expect(claimAuctionAward(second.userId, second.id, first.expiresAt)).rejects.toThrow('unavailable');
+  expect((await prisma.user.findUniqueOrThrow({ where: { id: second.userId } })).xp).toBe(20n);
   expect((await prisma.auction.findUniqueOrThrow({ where: { id: auction.id } })).status).toBe('CLOSED');
 });
 integration('auction halves a double bid and sends an unqualified prize to owner', async () => {
@@ -317,7 +221,6 @@ integration('auction halves a double bid and sends an unqualified prize to owner
   await advanceAuction(other.auction.id, other.auction.endsAt);
   expect((await prisma.auction.findUniqueOrThrow({ where: { id: other.auction.id } })).status).toBe('CLOSED');
   expect(await prisma.auctionAward.count({ where: { auctionId: other.auction.id } })).toBe(0);
-  expect(await prisma.ledgerTransaction.count({ where: { idempotencyKey: `auction-unclaimed:${other.auction.id}` } })).toBe(1);
 });
 integration('auction counter only decreases for accepted bids, not elapsed time or retries', async () => {
   const { auction, users } = await auctionFixture();

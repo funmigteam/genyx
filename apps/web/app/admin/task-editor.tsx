@@ -9,7 +9,6 @@ export function TaskEditor({
   changed: () => Promise<void>;
 }) {
   const [kind, setKind] = useState("EXTERNAL_LINK");
-  const [dayNumber, setDayNumber] = useState(1);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
@@ -34,13 +33,13 @@ export function TaskEditor({
           rewardGen: Number(form.get("rewardGen")),
           rewardXp: Number(form.get("rewardXp")),
           rewardUsdt: Math.round(Number(form.get("rewardUsdt")) * 1_000_000),
-          isDaily: true,
-          dayNumber: Number(form.get("dayNumber")),
+          isDaily: form.get("isDaily") === "on",
+          dayNumber: null,
           status: form.get("status"),
         }),
       });
       setMessage(
-        "تسک ذخیره شد. هنگام باز شدن روز مربوطه برای کاربر، در فهرست تسک‌های آن روز قرار می‌گیرد.",
+        "تسک ذخیره شد. اگر منتشر شده باشد، همین الان در لیست تسک‌های کاربران نمایش داده می‌شود.",
       );
       await changed();
     } catch (e) {
@@ -85,11 +84,9 @@ export function TaskEditor({
             <option value="DIRECT_COUNT">تعداد رفرال مستقیم</option>
             <option value="MAX_CAP_REACHED">مکس کپ کل (USDT)</option>
             <option value="USED_CAP_REACHED">مکس کپ مصرفی (USDT)</option>
-            <option value="SEASON_REACHED">شماره فصل</option>
             <option value="CYCLES_REACHED">تعداد سایکل نقدی</option>
             <option value="VOUCHERS_REACHED">تعداد ووچر موجود</option>
             <option value="GEN_SPENT">GEN خرج‌شده</option>
-            <option value="DAY_REACHED">روز فعلی فصل</option>
           </select>
         </label>
         <label>
@@ -137,11 +134,9 @@ export function TaskEditor({
           "DIRECT_COUNT",
           "MAX_CAP_REACHED",
           "USED_CAP_REACHED",
-          "SEASON_REACHED",
           "CYCLES_REACHED",
           "VOUCHERS_REACHED",
           "GEN_SPENT",
-          "DAY_REACHED",
         ].includes(kind) && (
           <label>
             {kind === "XP_REACHED"
@@ -216,29 +211,10 @@ export function TaskEditor({
           />
         </label>
 
-        <fieldset className="season-day-picker">
-          <legend>روز اجرای تسک در فصل</legend>
-          <input type="hidden" name="dayNumber" value={dayNumber} />
-          <p>
-            تسک فقط در روز انتخاب‌شده از فصل ۳۰ روزه به کاربر نمایش داده می‌شود.
-          </p>
-          <div>
-            {Array.from({ length: 30 }, (_, index) => {
-              const day = index + 1;
-              return (
-                <button
-                  key={day}
-                  type="button"
-                  className={dayNumber === day ? "selected" : ""}
-                  aria-pressed={dayNumber === day}
-                  onClick={() => setDayNumber(day)}
-                >
-                  روز {day}
-                </button>
-              );
-            })}
-          </div>
-        </fieldset>
+        <label className="admin-check">
+          <input type="checkbox" name="isDaily" defaultChecked />
+          تکرار روزانه — هر روز ساعت ۱۲ ظهر به وقت تهران دوباره قابل انجام می‌شود (بدون تیک: فقط یک‌بار)
+        </label>
         <label>
           وضعیت
           <select name="status">

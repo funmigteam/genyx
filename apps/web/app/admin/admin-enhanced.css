@@ -35,3 +35,41 @@
 .season-day-picker button{padding:9px 4px!important;font-size:12px;white-space:nowrap}
 .season-day-picker button.selected{background:#22d3ee!important;border-color:#67e8f9!important;color:#07111e!important}
 @media (max-width:520px){.season-day-picker>div{grid-template-columns:repeat(3,minmax(0,1fr))}}
+/* Section navigation */
+.admin-nav-item{display:block;width:100%;text-align:right;padding:10px 20px;background:none;border:0;border-left:2px solid transparent;color:#bec7d5;font:inherit;font-size:13px;cursor:pointer}
+.admin-nav-item:hover{color:#00f5ff;background:#00f5ff12;border-left-color:#00f5ff}
+.admin-nav-item.active{color:#00f5ff;background:#00f5ff1c;border-left-color:#00f5ff;font-weight:700}
+.admin-nav-item.danger{color:#ff8a9a}
+.admin-nav-item.danger.active,.admin-nav-item.danger:hover{color:#ff8a9a;background:#ff4d6a14;border-left-color:#ff4d6a}
+.admin-nav-item:focus-visible{outline:2px solid #00f5ff;outline-offset:-2px}
+/* Dashboard status */
+.status-strip{margin-top:16px}
+.status-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.status-tile{display:grid;gap:4px;text-align:right;border:1px solid #ffffff12;border-radius:12px;padding:12px 14px;background:#0b0b12;color:#e5e7eb;font:inherit}
+button.status-tile{cursor:pointer}
+button.status-tile:hover{border-color:#00f5ff66}
+.status-tile small{color:#91a2bb;font-size:11px}
+.status-tile b{font-size:22px}
+.status-tile.ok b{color:#5cf2a6}
+.status-tile.warn{border-color:#ffc84f55}
+.status-tile.warn b{color:#ffc84f}
+.status-tile.muted b{color:#91a2bb}
+.status-error{margin:10px 0 0;color:#ff8a9a}
+.status-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:14px;color:#b9c8da;font-size:12px}
+.status-actions button{border:1px solid #00f5ff55;border-radius:10px;background:#00f5ff12;color:#bcefff;padding:8px 12px;cursor:pointer}
+.status-actions button.danger{border-color:#ff4d6a66;background:#ff4d6a12;color:#ff8a9a}
+.status-actions button:disabled{opacity:.5;cursor:not-allowed}
+/* Investments */
+.admin-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin:14px 0}
+.admin-stats>div{display:grid;gap:4px;border:1px solid #ffffff10;border-radius:12px;padding:12px;background:#0b0b12}
+.admin-stats small{color:#91a2bb;font-size:11px}
+.admin-stats b{font-size:18px}
+.admin-stats .negative b{color:#ff8a9a}
+.status.active{color:#5cf2a6;background:#5cf2a614}
+.status.completed{color:#ffc84f;background:#ffc84f14}
+.status.cancelled{color:#ff8a9a;background:#ff4d6a14}
+.admin-danger-note{margin:16px 0;border:1px solid #ff4d6a55;border-radius:12px;background:#ff4d6a0f;padding:12px 14px;color:#ffc2cb}
+@media(max-width:900px){.admin-sidebar nav{grid-template-columns:repeat(3,1fr)}.admin-nav-item{text-align:center;padding:10px 6px;font-size:11px;border-left:0;border-bottom:2px solid transparent}.admin-nav-item.active{border-bottom-color:#00f5ff}}
+.admin-check{display:flex!important;grid-template-columns:none!important;align-items:center;gap:10px}
+.admin-check input{width:auto}
+.export-link{margin:12px 0;padding:12px;border:1px dashed #8dffb0;border-radius:12px;background:#10241c}.export-link p{margin:0 0 8px}

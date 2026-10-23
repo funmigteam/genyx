@@ -1,7 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Countdown } from "../countdown";
-import { DailyGiftEditor } from "./daily-gift-editor";
 export function Overview({
   token,
   superAdmin,
@@ -10,16 +8,6 @@ export function Overview({
   superAdmin: boolean;
 }) {
   const [stats, setStats] = useState<Record<string, string | number>>({}),
-    [gifts, setGifts] = useState<
-      {
-        id: string;
-        number: number;
-        deadline: string;
-        gift: string;
-        claimedAt: string | null;
-        enrollment: { userId: string; season: number };
-      }[]
-    >([]),
     [message, setMessage] = useState(""),
     [content, setContent] = useState<Record<string, string>>({});
   const request = async (path: string, body?: unknown) => {
@@ -43,14 +31,8 @@ export function Overview({
   };
   useEffect(() => {
     const load = () =>
-      Promise.all([
-        request("/v1/admin/activity-stats"),
-        request("/v1/admin/daily-gifts"),
-      ])
-        .then(([s, g]) => {
-          setStats(s);
-          setGifts(g);
-        })
+      request("/v1/admin/activity-stats")
+        .then(setStats)
         .catch((e) => setMessage(e.message));
     void load();
     const timer = setInterval(load, 30000);
@@ -76,8 +58,6 @@ export function Overview({
     activeUsers: "کاربران دارای پکیج",
     claims: "تسک تسویه‌شده",
     pendingClaims: "تسک منتظر بررسی",
-    seasons: "فصل‌های ثبت‌شده",
-    gifts: "هدایای دریافت‌شده",
     auctions: "اتاق‌ها",
     bids: "کل پیشنهادها",
     vouchers: "ووچر موجود کاربران",
@@ -96,17 +76,6 @@ export function Overview({
           </article>
         ))}
       </div>
-      <details>
-        <summary>گزارش هدیه روزانه — ۱۰۰ رکورد آخر</summary>
-        {gifts.map((g) => (
-          <p key={g.id}>
-            کاربر {g.enrollment.userId} · فصل {g.enrollment.season} · روز{" "}
-            {g.number} · {Number(g.gift) / 1000000} USDT ·{" "}
-            {g.claimedAt ? "دریافت‌شده" : <Countdown end={g.deadline} />}
-          </p>
-        ))}
-      </details>
-      {superAdmin && <DailyGiftEditor token={token} />}
       {superAdmin &&
         ["welcome_message", "terms_text"].map((key) => (
           <form

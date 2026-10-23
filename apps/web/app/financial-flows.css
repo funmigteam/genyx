@@ -98,3 +98,19 @@ section.financial-flows .auction-room .room-stats strong { color: #f4f7ff; font-
 @keyframes gift-arrive { from { opacity:0; transform:translateY(15px) scale(.92); } to { opacity:1; transform:none; } }
 @media(prefers-reduced-motion:reduce) { .reward-box svg,.reward-postcard { animation:none; } }
 .lottery-package{display:grid;place-items:center;min-height:48px;padding:9px 8px!important;text-align:center}.lottery-package>span{font-size:11px;letter-spacing:.11em;color:#eef7ff}.lottery-package-details p+p{margin-top:8px}.lottery-pack-gen-reward{color:#ffdf8c!important;font-weight:800}
+/* One pack per hall */
+.hall-pack-offer { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:10px 0; padding:12px 14px; border-radius:16px; border:1px solid #c99aff66; background:linear-gradient(120deg,#2a1d4d,#16132b); animation:hall-pack-glow 2.6s ease-in-out infinite; }
+.hall-pack-offer span { display:block; font-size:11px; font-weight:800; letter-spacing:.12em; color:#c99aff; }
+.hall-pack-offer strong { display:block; font-size:22px; color:#fff; }
+.hall-pack-offer small { color:#b9b1d6; }
+.hall-pack-offer button { flex:none; min-height:44px; padding:0 18px; border:0; border-radius:12px; background:linear-gradient(135deg,#ffd778,#ff9ad5); color:#1b0f2e; font-weight:900; cursor:pointer; }
+.hall-pack-offer button:disabled { opacity:.6; }
+.hall-pack-offer.lottery-package--a { border-color:#ffd77866; }
+.hall-pack-offer.lottery-package--b { border-color:#7cc4ff66; }
+.hall-pack-active { margin:10px 0; color:#8dffb0; font-weight:800; }
+.archive-claim { margin-top:8px; padding:10px; border-radius:12px; border:1px solid #ffd778; background:#2a2210; }
+.archive-claim p { margin:0 0 8px; color:#ffe7a8; }
+.archive-claim button { width:100%; min-height:44px; border:0; border-radius:12px; background:#ffd778; color:#1b1408; font-weight:900; }
+@keyframes hall-pack-glow { 50% { box-shadow:0 0 22px #c99aff44; } }
+@media (prefers-reduced-motion: reduce) { .hall-pack-offer { animation:none; } }
+.lottery-passed { margin:8px 0 0; font-size:12px; color:#8e9ab3; }

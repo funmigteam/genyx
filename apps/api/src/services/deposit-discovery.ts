@@ -4,6 +4,16 @@ import { ContractAdapter } from '@ton-api/ton-adapter';
 import { prisma } from '../prisma.js';
 import { findDepositNotification } from '../domain/jetton-confirmation.js';
 
+const maxSettlementAttempts = 3;
+
+async function creditAsWalletTopup(paymentId: string, txHash: string, action: string, confirm: (id: string) => Promise<unknown>, error?: unknown) {
+  await prisma.$transaction([
+    prisma.payment.update({ where: { id: paymentId }, data: { chainTxHash: txHash, purpose: 'WALLET_TOPUP' } }),
+    prisma.auditEvent.create({ data: { action, entityType: 'Payment', entityId: paymentId, after: { txHash, reason: error instanceof Error ? error.message.slice(0, 240) : null } } }),
+  ]);
+  await confirm(paymentId);
+}
+
 export async function discoverDeposits(client: TonApiClient, treasury: string, master: string, network: string, confirm: (id: string) => Promise<unknown>) {
   // Catch up a bounded backlog in one worker iteration rather than waiting a
   // full polling interval after every page. Cursor commits remain per item.
@@ -40,12 +50,26 @@ async function discoverDepositPage(client: TonApiClient, treasury: string, maste
         const valid = findDepositNotification({ transaction, interfaces: [] } as Trace, { recipient, recipientJetton: jetton, amount: payment.expectedAmount, comment: `GENYX:${payment.id}` });
         if (valid) {
           const received = new Date(transaction.utime * 1000);
-          if (transaction.utime < Math.floor(payment.createdAt.getTime() / 1000) || received > payment.expiresAt) {
+          if (transaction.utime < Math.floor(payment.createdAt.getTime() / 1000)) {
             await prisma.auditEvent.create({ data: { action: 'DEPOSIT_OUTSIDE_INVOICE_WINDOW', entityType: 'Payment', entityId: payment.id, after: { txHash: transaction.hash } } });
+          } else if (received > payment.expiresAt) {
+            // The quote behind a late purchase may be stale, but the money did
+            // arrive: credit it to the payer's in-app balance instead.
+            await creditAsWalletTopup(payment.id, transaction.hash, 'DEPOSIT_LATE_CREDITED_TO_WALLET', confirm);
           } else {
             await prisma.payment.update({ where: { id: payment.id }, data: { chainTxHash: transaction.hash } });
-            // Do not advance past a failed settlement: retry from this transaction.
-            await confirm(payment.id);
+            try {
+              await confirm(payment.id);
+            } catch (error) {
+              // Retry transient failures, but never let one unsettleable
+              // purchase block every later deposit behind the cursor.
+              const retryKey = `deposit-retry:${payment.id}`;
+              const previous = await prisma.systemSetting.findUnique({ where: { key: retryKey } });
+              const attempts = (typeof previous?.value === 'number' ? previous.value : 0) + 1;
+              await prisma.systemSetting.upsert({ where: { key: retryKey }, create: { key: retryKey, value: attempts }, update: { value: attempts } });
+              if (attempts < maxSettlementAttempts) throw error;
+              await creditAsWalletTopup(payment.id, transaction.hash, 'DEPOSIT_UNSETTLEABLE_CREDITED_TO_WALLET', confirm, error);
+            }
           }
         }
       }

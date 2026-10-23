@@ -1,7 +1,8 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../prisma.js';
-import { levelForXp } from '../domain/progression.js';
+import { rankLevel } from './ranks.js';
+import { rankName } from '../domain/ranks.js';
 
 export function supportRoutes(app: FastifyInstance, requireUser: any, requireAdmin: any) {
  app.get('/v1/me/xp-boost',{preHandler:requireUser},async(r:any)=>{
@@ -51,8 +52,8 @@ export function supportRoutes(app: FastifyInstance, requireUser: any, requireAdm
  });
  app.get('/v1/me/notifications',{preHandler:requireUser},async(r:any)=>{
   const user=await prisma.user.findUniqueOrThrow({where:{id:r.user.sub}});
-  const level=levelForXp(user.xp).level;
-  if(level>1)await prisma.userNotification.upsert({where:{eventKey:`level:${user.id}:${level}`},create:{userId:user.id,eventKey:`level:${user.id}:${level}`,title:`Level ${level} unlocked`,body:`Your account has reached level ${level}. Keep completing tasks to earn XP.`},update:{}});
+  const level=await rankLevel(prisma,user.id);
+  if(level>1)await prisma.userNotification.upsert({where:{eventKey:`level:${user.id}:${level}`},create:{userId:user.id,eventKey:`level:${user.id}:${level}`,title:`Level ${level} · ${rankName(level)}`,body:`You reached the ${rankName(level)} rank, which is level ${level}. Keep building Fixed Cycles to reach the next rank.`},update:{}});
   return prisma.userNotification.findMany({where:{userId:user.id},orderBy:{createdAt:'desc'},take:100});
  });
  app.post('/v1/me/notifications/:id/read',{preHandler:requireUser},async(r:any)=>prisma.userNotification.updateMany({where:{id:r.params.id,userId:r.user.sub,readAt:null},data:{readAt:new Date()}}));

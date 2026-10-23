@@ -16,7 +16,7 @@ export async function getOrCreatePackageIntent(userId: string, quote: Quote, now
     if (requiresInitialPackage(quote.packageCode) && !await tx.payment.findFirst({
       where: { userId, purpose: 'PACKAGE', packageCode: { in: [...INITIAL_PACKAGE_CODES] }, status: 'CONFIRMED' }, select: { id: true }
     })) {
-      throw new Error('Purchase and confirm at least one opening package (6, 18, or 60 USDT) before this package.');
+      throw new Error('Purchase and confirm at least one opening package (11, 33 or 110 USDT) before this package.');
     }
     const where = { userId, packageCode: quote.packageCode, purpose: 'PACKAGE' };
     if (quote.packageCode !== 'DIAMOND' && await tx.payment.findFirst({ where: { ...where, status: 'CONFIRMED' } })) {

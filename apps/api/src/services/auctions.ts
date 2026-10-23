@@ -55,27 +55,41 @@ export async function deleteUnusedAuction(actorId: string, auctionId: string) {
     return { ok: true };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
-export async function purchaseAuctionPackage(userId: string, series: 'A' | 'B' | 'C', priceUsdt: bigint, requestKey: string) {
-  if (priceUsdt < 0n) throw new Error('Invalid lottery package price');
+export const LOTTERY_PACK_GEN_PER_USDT = 10n;
+/** A lottery pack belongs to exactly one hall (e.g. C1) and is bought once. */
+export const hallPassScope = (auctionId: string) => `HALL:${auctionId}`;
+
+export async function purchaseHallPack(userId: string, auctionId: string, priceUsdt: bigint, requestKey: string) {
+  if (priceUsdt <= 0n) throw new Error('Lottery package price must be positive');
   return prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
+    const key = `hall-pack:${requestKey}`;
+    if (await tx.ledgerTransaction.findUnique({ where: { idempotencyKey: key } }))
+      return { ...(await tx.auctionEntryPass.findUniqueOrThrow({ where: { userId_series: { userId, series: hallPassScope(auctionId) } } })), rewardGen: 0n, replayed: true };
     const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
     if (!user.activePackageCode) throw new Error('Active package required');
+    const auction = await tx.auction.findUniqueOrThrow({ where: { id: auctionId } });
+    if (!auction.series || !['A', 'B', 'C'].includes(auction.series)) throw new Error('This hall does not use lottery packs');
+    if (auction.status !== 'OPEN' || auction.remainingSeconds <= 0) throw new Error('This hall is no longer accepting entries');
+    if (await tx.auctionEntryPass.findUnique({ where: { userId_series: { userId, series: hallPassScope(auctionId) } } }))
+      throw new Error(`You already own the ${auction.series} pack for ${auction.title}`);
     const available = await tx.ledgerAccount.upsert({ where: { code: `USER:${userId}:USDC:AVAILABLE` }, create: { userId, code: `USER:${userId}:USDC:AVAILABLE`, currency: 'USDC', type: 'AVAILABLE' }, update: {} });
     await tx.$queryRaw`SELECT id FROM "LedgerAccount" WHERE id = ${available.id} FOR UPDATE`;
-    const key = `auction-package:${requestKey}`;
-    const replay = await tx.ledgerTransaction.findUnique({ where: { idempotencyKey: key } });
-    if (replay) {
-      const pass = await tx.auctionEntryPass.findUniqueOrThrow({ where: { userId_series: { userId, series } } });
-      return { ...pass, replayed: true };
-    }
     const balance = await tx.ledgerEntry.aggregate({ where: { accountId: available.id }, _sum: { debit: true, credit: true } });
     if ((balance._sum.credit ?? 0n) - (balance._sum.debit ?? 0n) < priceUsdt) throw new Error('Insufficient USDT in your in-app wallet for this lottery package');
     const reward = await account(tx, 'SYSTEM:USDC:REWARD');
-    if (priceUsdt > 0n) await postLedger({ idempotencyKey: key, kind: LedgerKind.LOTTERY_ENTRY, referenceType: 'AuctionEntryPackage', referenceId: `${userId}:${series}:${requestKey}`, postings: [{ accountId: available.id, debit: priceUsdt }, { accountId: reward.id, credit: priceUsdt }] }, tx);
-    const pass = await tx.auctionEntryPass.upsert({ where: { userId_series: { userId, series } }, create: { userId, series, entryUsdt: priceUsdt, roomsRemaining: 2 }, update: { entryUsdt: priceUsdt, roomsRemaining: { increment: 2 } } });
-    await tx.auditEvent.create({ data: { actorId: userId, action: 'AUCTION_PACKAGE_PURCHASED', entityType: 'AuctionEntryPass', entityId: pass.id, after: { series, priceUsdt: String(priceUsdt), roomsAdded: 2, roomsRemaining: pass.roomsRemaining } } });
-    return { ...pass, replayed: false };
+    await postLedger({ idempotencyKey: key, kind: LedgerKind.LOTTERY_ENTRY, referenceType: 'AuctionHallPack', referenceId: `${userId}:${auctionId}`, postings: [{ accountId: available.id, debit: priceUsdt }, { accountId: reward.id, credit: priceUsdt }] }, tx);
+    const pass = await tx.auctionEntryPass.create({ data: { userId, series: hallPassScope(auctionId), entryUsdt: priceUsdt, roomsRemaining: 1 } });
+    const rewardGen = priceUsdt * LOTTERY_PACK_GEN_PER_USDT / 1000000n;
+    if (rewardGen > 0n) {
+      const [issuer, gen] = await Promise.all([
+        account(tx, 'SYSTEM:GEN:ENTRY_REWARDS', 'GEN'),
+        tx.ledgerAccount.upsert({ where: { code: `USER:${userId}:GEN:AVAILABLE` }, create: { userId, code: `USER:${userId}:GEN:AVAILABLE`, currency: 'GEN', type: 'AVAILABLE' }, update: {} }),
+      ]);
+      await postLedger({ idempotencyKey: `hall-pack-gen:${requestKey}`, kind: LedgerKind.GEN_CREDIT, referenceType: 'AuctionHallPack', referenceId: `${userId}:${auctionId}`, postings: [{ accountId: issuer.id, debit: rewardGen }, { accountId: gen.id, credit: rewardGen }] }, tx);
+    }
+    await tx.auditEvent.create({ data: { actorId: userId, action: 'AUCTION_HALL_PACK_PURCHASED', entityType: 'Auction', entityId: auctionId, after: { series: auction.series, hall: auction.title, priceUsdt: String(priceUsdt), rewardGen: String(rewardGen) } } });
+    return { ...pass, rewardGen, replayed: false };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
 export async function placeAuctionBid(userId: string, auctionId: string, cents: bigint, requestKey: string, now = new Date()) {
@@ -96,9 +110,13 @@ export async function placeAuctionBid(userId: string, auctionId: string, cents: 
     const entryScope = auction.series ?? `ROOM:${auction.id}`;
     const existingRoomBid = await tx.auctionBid.count({ where: { auctionId, userId } });
     if (auction.series && ['A', 'B', 'C'].includes(auction.series)) {
-      const pass = await tx.auctionEntryPass.findUnique({ where: { userId_series: { userId, series: auction.series } } });
-      if (!pass || pass.roomsRemaining <= 0) throw new Error(`Purchase the ${auction.series} lottery package to enter this hall`);
-      if (existingRoomBid === 0) await tx.auctionEntryPass.update({ where: { id: pass.id }, data: { roomsRemaining: { decrement: 1 } } });
+      // Entering a hall needs that hall's own pack; once entered, further bids are free.
+      if (existingRoomBid === 0 && !await tx.auctionEntryPass.findUnique({ where: { userId_series: { userId, series: hallPassScope(auctionId) } } })) {
+        // Credits bought before packs became hall-specific are still honoured.
+        const legacy = await tx.auctionEntryPass.findUnique({ where: { userId_series: { userId, series: auction.series } } });
+        if (!legacy || legacy.roomsRemaining <= 0) throw new Error(`Buy the ${auction.series} pack for ${auction.title} to enter this hall`);
+        await tx.auctionEntryPass.update({ where: { id: legacy.id }, data: { roomsRemaining: { decrement: 1 } } });
+      }
     } else if (auction.entryUsdt > 0n) {
       const pass = await tx.auctionEntryPass.findUnique({ where: { userId_series: { userId, series: entryScope } } });
       if (!pass) {
@@ -213,14 +231,17 @@ export async function claimAuctionAward(userId: string, awardId: string, now = n
     });
     await tx.$queryRaw`SELECT id FROM "LedgerAccount" WHERE id = ${available.id} FOR UPDATE`;
     const winningBid = award.cents * 10000n;
+    // The winning bid is deducted from the prize; only a bid larger than the
+    // prize needs the difference from the wallet.
+    const shortfall = winningBid > award.prizeUsdt ? winningBid - award.prizeUsdt : 0n;
     const balance = await tx.ledgerEntry.aggregate({ where: { accountId: available.id }, _sum: { debit: true, credit: true } });
-    if ((balance._sum.credit ?? 0n) - (balance._sum.debit ?? 0n) < winningBid) throw new Error('Insufficient USDT in your in-app wallet for the winning bid');
+    if ((balance._sum.credit ?? 0n) - (balance._sum.debit ?? 0n) < shortfall) throw new Error('Insufficient USDT in your in-app wallet for the winning bid');
 
+    if (award.prizeUsdt) await move(tx, 'SYSTEM:USDC:OWNER', available.code, award.prizeUsdt, `auction-manual-prize:${award.id}`, false);
     if (winningBid > 0n) {
       const reward = await account(tx, 'SYSTEM:USDC:REWARD');
       await postLedger({ idempotencyKey: `auction-winning-bid:${award.id}`, kind: LedgerKind.LOTTERY_ENTRY, referenceType: 'AuctionAward', referenceId: award.id, postings: [{ accountId: available.id, debit: winningBid }, { accountId: reward.id, credit: winningBid }] }, tx);
     }
-    if (award.prizeUsdt) await move(tx, 'SYSTEM:USDC:OWNER', available.code, award.prizeUsdt, `auction-manual-prize:${award.id}`, false);
     if (award.prizeGen) {
       const source = await account(tx, 'SYSTEM:GEN:AUCTION_PRIZES', 'GEN');
       const target = await tx.ledgerAccount.upsert({ where: { code: `USER:${award.userId}:GEN:AVAILABLE` }, create: { code: `USER:${award.userId}:GEN:AVAILABLE`, userId: award.userId, currency: 'GEN', type: 'AVAILABLE' }, update: {} });

@@ -1,77 +1,45 @@
 import { createHash } from 'node:crypto';
 import { prisma } from '../prisma.js';
-export const DEFAULT_TERMS_TEXT = `15. Risks
+export const DEFAULT_TERMS_TEXT = `GENYX — TERMS OF SERVICE
 
-Users acknowledge that Web3 and digital asset activities involve risks, including:
+Last Updated: September 6, 2026
 
-Asset price volatility.
+1. Acceptance
 
-Blockchain or Network Failure.
+By using GENYX, you agree to these Terms. If you disagree, do not use the Platform.
 
-Smart Contract Risk.
+2. Accounts & Security
 
-Wallet Risk.
+Fake accounts, fraudulent referrals, bots, and system manipulation are prohibited. Never share your password or wallet recovery phrase.
 
-Cyberattacks.
+3. Missions & Rewards
 
-Liquidity Risk.
+Missions must be completed honestly. XP, Levels, Rewards, and commissions are subject to Platform rules and are not guaranteed.
 
-User error.
+4. Packages & Cancellation
 
-Regulatory changes.
+Package cancellation is permitted only within the first two months after purchase. Paid commissions and daily profits received will be deducted from the original investment. Any remaining balance will be refunded to the User’s Wallet. No refund is due if deductions equal or exceed the original investment.
 
-Loss of access to digital assets.
+5. Max Cap & Income
 
-Users should only use applicable services after considering these risks.
+Rewards and commissions are subject to Max Cap and Platform rules. GENYX does not guarantee income, profit, or financial returns.
 
-16. Limitation of Liability
+6. Wallet & Digital Assets
 
-To the maximum extent permitted by applicable law, GENYX is not responsible for losses caused by events outside its reasonable control, including Blockchain or Telegram disruptions, Internet failures, Cyberattacks, Wallet Provider problems, regulatory changes, or Force Majeure events.
-Nothing in these Terms excludes rights or liabilities that cannot legally be excluded or limited.
+Blockchain transactions may be irreversible. Users must verify addresses, networks, amounts, and fees. Digital assets involve financial and technical risks.
 
-17. Privacy, Taxes and Regional Restrictions
+7. Fraud & Violations
 
-User information is processed according to the GENYX Privacy Policy and may be used where necessary for service delivery, security, authentication, fraud prevention, and legal compliance.
-Certain GENYX services may be unavailable or restricted in particular countries or regions. Users are responsible for ensuring that their use of GENYX is lawful in their jurisdiction.
-Users are responsible for any applicable taxes, duties, reporting obligations, or other legal requirements relating to their use of GENYX or receipt of digital assets or Rewards.
+GENYX may investigate suspicious activity and apply warnings, restrictions, suspension, or account termination depending on the severity of violations.
 
-18. Changes to These Terms
+8. Platform & Privacy
 
-GENYX may update these Terms when necessary.
-The updated version becomes effective upon publication or on the effective date stated by GENYX.
-Continued use of GENYX after the effective date constitutes acceptance of the updated Terms to the extent permitted by applicable law.
+GENYX may update its features and rules. User information is handled according to the Privacy Policy. Users must comply with applicable laws.
 
-19. Official Support
+9. Final Agreement
 
-Users should contact GENYX only through official Support channels.
-GENYX will never request:
-Password / Seed Phrase / Recovery Phrase / Private Key
-from a User.
-Any person requesting such information while claiming to represent GENYX should be treated as suspicious and reported through official Support.
-
-20. Final User Confirmation
-
-By selecting the confirmation checkbox below, the User confirms that they:
-
-Have read and understood these Terms.
-
-Accept the rules governing GENYX.
-
-Understand the relevant Web3 and digital asset risks.
-
-Accept responsibility for their Account activity.
-
-Agree to the applicable Anti-Fraud and Audit systems.
-
-Understand that violations may result in Warning, Restriction, Suspension, or Termination.
-
-Failure to accept these Terms means the User may not use GENYX services.
-
-GENYX
-
-PLAY · BUILD · RISE
-
-Earn through action. Learn through experience. Build your future.`;
+By selecting “I Agree,” you confirm that you understand and accept these Terms, including the cancellation policy, Platform rules, and digital asset risks.
+GENYX — MORE THAN A GAME`;
 export async function currentTerms() {
   const setting = await prisma.systemSetting.findUnique({ where: { key: 'terms_text' } });
   const text = typeof setting?.value === 'string' ? setting.value : DEFAULT_TERMS_TEXT;

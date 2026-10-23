@@ -2,7 +2,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 
 type Payment = { id: string; packageCode: string; expectedAmount: string; status: string; chainTxHash?: string };
-type Withdrawal = { id: string; amount: string; fee: string; netAmount: string; status: string; destination: string };
+type Withdrawal = { id: string; amount: string; fee: string; netAmount: string; status: string; destination: string; automatic?: boolean };
 type Summary = { status: string; count: number; amount: string };
 type CreditUser = { id: string; telegramId: string; username?: string | null; firstName?: string | null; referralCode?: string | null; maxCap: string; capConsumed: string };
 const money = (value: string) => { const amount = BigInt(value); return `${amount / 1000000n}.${(amount % 1000000n).toString().padStart(6, '0')} USDT`; };
@@ -11,6 +11,10 @@ const normalizeUsdtInput = (value: string) => value
   .replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
   .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
   .replace(/[٫،]/g, '.').replace(/[^0-9.]/g, '');
+
+type TelegramWebApp = { initData?: string; downloadFile?: (params: { url: string; file_name: string }) => void; openLink?: (url: string, options?: { try_instant_view?: boolean }) => void; isVersionAtLeast?: (version: string) => boolean };
+const telegramWebApp = () => (window as unknown as { Telegram?: { WebApp?: TelegramWebApp } }).Telegram?.WebApp;
+const openExternally = (url: string) => { const webApp = telegramWebApp(); if (webApp?.openLink && webApp.initData) webApp.openLink(url, { try_instant_view: false }); else window.open(url, '_blank', 'noopener'); };
 
 export function FinancePanel({ token }: { token: string }) {
   const [payments, setPayments] = useState<Payment[]>([]), [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]), [summary, setSummary] = useState<Summary[]>([]);
@@ -32,10 +36,23 @@ export function FinancePanel({ token }: { token: string }) {
     finally { setBusy(false); }
   };
   useEffect(() => { void refresh(); }, [token]);
-  const download = async () => { try {
-    const blob = await (await request('/v1/admin/reports/financial.csv')).blob();
-    const url = URL.createObjectURL(blob), link = document.createElement('a'); link.href = url; link.download = 'genyx-payments.csv'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-  } catch (e) { setError(e instanceof Error ? e.message : 'دریافت خروجی ناموفق بود.'); } };
+  const [exporting, setExporting] = useState(false), [exportLink, setExportLink] = useState<string | null>(null), [copied, setCopied] = useState(false);
+  const download = async () => {
+    if (exporting) return; setExporting(true); setError('');
+    try {
+      // A signed 5-minute link: Telegram's browser cannot save a fetched blob.
+      const response = await fetch(`${api}/v1/admin/reports/full.xlsx/link`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      if (!response.ok) throw new Error(response.status === 403 ? 'برای خروجی اکسل، دسترسی مدیریت مالی لازم است.' : 'ساخت لینک خروجی ناموفق بود؛ دوباره تلاش کنید.');
+      const { path, fileName } = await response.json() as { path: string; fileName: string };
+      const url = new URL(path, api.startsWith('http') ? api : window.location.origin).toString();
+      setExportLink(url); setCopied(false);
+      const webApp = telegramWebApp();
+      // Telegram shows its own save prompt; the link box below is the fallback.
+      if (webApp?.downloadFile && webApp.isVersionAtLeast?.('8.0')) webApp.downloadFile({ url, file_name: fileName });
+      else if (!webApp?.initData) window.location.assign(url);
+    } catch (e) { setError(e instanceof Error ? e.message : 'دریافت خروجی ناموفق بود.'); }
+    finally { setExporting(false); }
+  };
   const reviewWithdrawal = async (row: Withdrawal, status: string) => {
     if (busy) return;
     const txHash = status === 'PAID' ? window.prompt('پس از ارسال دستی مبلغ خالص، هش واقعی تراکنش را وارد کنید. درخواست قدیمی را بدون تطبیق زنجیره دوباره پرداخت نکنید.')?.trim() : undefined;
@@ -81,7 +98,12 @@ export function FinancePanel({ token }: { token: string }) {
   const matches = (row: Payment | Withdrawal) => `${row.id} ${row.status} ${statusLabel(row.status)} ${'destination' in row ? row.destination : `${row.packageCode} ${row.chainTxHash ?? ''}`}`.toLowerCase().includes(filter.trim().toLowerCase());
   const visiblePayments = payments.filter(row => showHistory || row.status === 'PENDING').filter(matches), visibleWithdrawals = withdrawals.filter(matches);
   return <section className="admin-card" id="finance" dir="rtl" aria-busy={busy}><h2>عملیات مالی</h2><p>جمع پرداخت‌های ثبت‌شده و آخرین ۲۰۰ درخواست. ارسال تراکنش به شبکه به معنای تأیید پرداخت نیست.</p>
-    <button className="admin-primary" disabled={busy} onClick={refresh}>{busy ? 'در حال دریافت…' : 'به‌روزرسانی گزارش مالی'}</button> <button className="admin-primary" onClick={download}>خروجی CSV پرداخت‌ها</button>
+    <button className="admin-primary" disabled={busy} onClick={refresh}>{busy ? 'در حال دریافت…' : 'به‌روزرسانی گزارش مالی'}</button> <button className="admin-primary" disabled={exporting} onClick={download} title="خلاصه، کاربران، پرداخت‌ها، برداشت‌ها، اینوست‌ها، لاتاری و دفتر کل — هر کدام در یک شیت">{exporting ? 'در حال ساخت فایل…' : 'خروجی کامل اکسل'}</button>
+    {exportLink && <div className="export-link" role="status">
+      <p>لینک دانلود اکسل آماده است (۵ دقیقه اعتبار). اگر دانلود شروع نشد، آن را در مرورگر باز کنید:</p>
+      <button className="admin-primary" onClick={() => openExternally(exportLink)}>باز کردن در مرورگر</button>{' '}
+      <button onClick={() => void navigator.clipboard?.writeText(exportLink).then(() => setCopied(true))}>{copied ? 'کپی شد ✓' : 'کپی لینک'}</button>
+    </div>}
     {error && <p role="alert">{error}</p>}
     <form onSubmit={creditWithdrawable} className="admin-credit-form">
       <h3>افزودن اعتبار قابل‌برداشت به کاربر</h3>
@@ -99,6 +121,6 @@ export function FinancePanel({ token }: { token: string }) {
     <h3>برداشت‌ها ({visibleWithdrawals.length.toLocaleString('fa-IR')})</h3>
     {!busy && !error && !visibleWithdrawals.length && <p role="status">برداشتی مطابق جست‌وجو یافت نشد.</p>}
     <p>پرداخت دستی است. مبلغ خالص را روی شبکه TON به آدرس زیر بفرستید، سپس هش تراکنش را ثبت کنید. برداشت‌های قدیمی دارای سابقه ارسال نیاز به تطبیق دارند؛ دوباره پرداخت نکنید.</p>
-    <div className="admin-table">{visibleWithdrawals.map(row => <article key={row.id}><div><b>خالص: <bdi>{money(row.netAmount)}</bdi></b><small>مبلغ: <bdi>{money(row.amount)}</bdi> · کارمزد: <bdi>{money(row.fee)}</bdi></small><small dir="ltr" style={{ overflowWrap: 'anywhere' }}>{row.destination}</small><small dir="ltr" style={{ overflowWrap: 'anywhere' }}>{row.id}</small></div><span>{statusLabel(row.status)}</span>{['REQUESTED','REVIEWING'].includes(row.status) && <button disabled={busy} onClick={() => reviewWithdrawal(row, 'APPROVED')}>تأیید برای پرداخت دستی</button>}{row.status === 'APPROVED' && <button disabled={busy} onClick={() => reviewWithdrawal(row, 'PAID')}>ثبت هش پرداخت انجام‌شده</button>}{['REQUESTED','REVIEWING','APPROVED'].includes(row.status) && <button disabled={busy} onClick={() => reviewWithdrawal(row, 'REJECTED')}>رد و آزادسازی موجودی</button>}</article>)}</div>
+    <div className="admin-table">{visibleWithdrawals.map(row => <article key={row.id}><div><b>خالص: <bdi>{money(row.netAmount)}</bdi></b><small>مبلغ: <bdi>{money(row.amount)}</bdi> · کارمزد: <bdi>{money(row.fee)}</bdi></small><small dir="ltr" style={{ overflowWrap: 'anywhere' }}>{row.destination}</small><small dir="ltr" style={{ overflowWrap: 'anywhere' }}>{row.id}</small></div><span>{statusLabel(row.status)}</span>{['REQUESTED','REVIEWING'].includes(row.status) && <button disabled={busy} onClick={() => reviewWithdrawal(row, 'APPROVED')}>{row.automatic ? 'تأیید و ارسال خودکار' : 'تأیید برای پرداخت دستی'}</button>}{row.status === 'APPROVED' && !row.automatic && <button disabled={busy} onClick={() => reviewWithdrawal(row, 'PAID')}>ثبت هش پرداخت انجام‌شده</button>}{(['REQUESTED','REVIEWING'].includes(row.status) || (row.status === 'APPROVED' && !row.automatic)) && <button disabled={busy} onClick={() => reviewWithdrawal(row, 'REJECTED')}>رد و آزادسازی موجودی</button>}</article>)}</div>
   </section>;
 }

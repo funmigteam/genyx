@@ -5,9 +5,7 @@ it('keeps owner share fixed and discounts only base', () => {
   expect(discountedPrice(33000000n, 3000000n, true)).toBe(18000000n);
   expect(discountedPrice(11000000n, 1000000n, false)).toBe(11000000n);
 });
-it('ends the global opening at thirty days plus extensions', () => {
-  expect(openingActive(undefined, 0)).toBe(true);
-  const start = '2026-09-01T00:00:00Z';
-  expect(openingActive(start, 0, new Date('2026-10-01T00:00:00Z'))).toBe(false);
-  expect(openingActive(start, 1, new Date('2026-10-01T00:00:00Z'))).toBe(true);
+it('keeps the 50% opening promotion retired', () => {
+  expect(openingActive(undefined, 0)).toBe(false);
+  expect(openingActive('2026-09-01T00:00:00Z', 3650, new Date('2026-09-02T00:00:00Z'))).toBe(false);
 });

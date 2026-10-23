@@ -9,11 +9,9 @@ export const metricKinds = [
   "DIRECT_COUNT",
   "MAX_CAP_REACHED",
   "USED_CAP_REACHED",
-  "SEASON_REACHED",
   "CYCLES_REACHED",
   "VOUCHERS_REACHED",
   "GEN_SPENT",
-  "DAY_REACHED",
 ];
 export async function checkMetric(
   tx: Prisma.TransactionClient,
@@ -64,17 +62,6 @@ export async function checkMetric(
         },
       }),
     );
-  if (kind === "SEASON_REACHED" || kind === "DAY_REACHED") {
-    const season = await tx.seasonEnrollment.findFirst({
-      where: { userId, currentDay: { gt: 0 } },
-      orderBy: { season: "desc" },
-    });
-    value = BigInt(
-      kind === "SEASON_REACHED"
-        ? (season?.season ?? 0)
-        : (season?.currentDay ?? 0),
-    );
-  }
   if (kind === "BINARY_AMOUNT") {
     value =
       (

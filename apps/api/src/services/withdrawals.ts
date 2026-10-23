@@ -1,7 +1,6 @@
 import { Address } from '@ton/ton';
-import { dailyCapForXp } from '../domain/progression.js';
 import { LedgerKind, Prisma, WithdrawalStatus } from '@prisma/client';
-import { economics, payoutAutomationReady } from '../config.js';
+import { env, economics, payoutAutomationReady } from '../config.js';
 import { prisma } from '../prisma.js';
 import { postLedger } from './ledger.js';
 
@@ -22,21 +21,13 @@ export async function requestWithdrawal(userId: string, amount: bigint, destinat
     if (switchSetting?.value === false) throw new Error('New withdrawals are temporarily disabled by the administrator.');
     const wallet = await tx.wallet.findUnique({ where: { userId } });
     if (!wallet?.verifiedAt || Address.parse(wallet.address).toRawString() !== destination) throw new Error('Register and verify this wallet in Profile before withdrawing');
-    const today = new Date(); today.setUTCHours(0, 0, 0, 0);
-    const activeToday = { userId, createdAt: { gte: today }, status: { notIn: [WithdrawalStatus.REJECTED, WithdrawalStatus.CANCELLED] } };
-    const count = await tx.withdrawal.count({ where: activeToday });
-    if (count >= economics.withdrawal.maximumPerDay) throw new Error('Daily withdrawal limit reached');
-    const [user, todayTotal] = await Promise.all([
-      tx.user.findUniqueOrThrow({ where: { id: userId }, select: { xp: true } }),
-      tx.withdrawal.aggregate({ where: activeToday, _sum: { amount: true } })
-    ]);
-    if ((todayTotal._sum.amount ?? 0n) + amount > dailyCapForXp(user.xp)) throw new Error('Daily withdrawal value cap reached for your level');
+    // No daily count or value cap: members may withdraw their whole balance.
     const available = await tx.ledgerAccount.findUniqueOrThrow({ where: { code: `USER:${userId}:USDC:AVAILABLE` } });
     const hold = await tx.ledgerAccount.findUniqueOrThrow({ where: { code: `USER:${userId}:USDC:HOLD` } });
     const sum = await tx.ledgerEntry.aggregate({ where: { accountId: available.id }, _sum: { debit: true, credit: true } });
     const balance = (sum._sum.credit ?? 0n) - (sum._sum.debit ?? 0n);
     if (balance < amount) throw new Error('Insufficient available balance');
-    const withdrawal = await tx.withdrawal.create({ data: { userId, amount, fee, netAmount, destination, idempotencyKey, status: payoutAutomationReady ? WithdrawalStatus.APPROVED : WithdrawalStatus.REQUESTED } });
+    const withdrawal = await tx.withdrawal.create({ data: { userId, amount, fee, netAmount, destination, idempotencyKey, status: payoutAutomationReady && amount <= env.AUTO_PAYOUT_MAX_USDT ? WithdrawalStatus.APPROVED : WithdrawalStatus.REQUESTED } });
     await postLedger({ idempotencyKey: `withdrawal-hold:${withdrawal.id}`, kind: LedgerKind.WITHDRAWAL, referenceType: 'Withdrawal', referenceId: withdrawal.id,
       postings: [{ accountId: available.id, debit: amount }, { accountId: hold.id, credit: amount }] }, tx);
     return withdrawal;
@@ -49,6 +40,9 @@ export async function reviewWithdrawal(id: string, actorId: string | null, statu
     txHash = txHash.toLowerCase();
   }
   if (status === WithdrawalStatus.PAID && !txHash) throw new Error('A blockchain transaction hash is required before marking a withdrawal paid');
+  // In automatic mode every approved withdrawal is sent by the payout worker; a
+  // manual transfer recorded here would be paid a second time.
+  if (status === 'PAID' && actorId && payoutAutomationReady) throw new Error('Automatic payouts are enabled; approved withdrawals are paid and confirmed by the payout worker');
   return prisma.$transaction(async tx => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(718291)`;
     const before = await tx.withdrawal.findUniqueOrThrow({ where: { id }, include: { payoutJob: true } });

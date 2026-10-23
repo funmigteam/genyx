@@ -8,7 +8,9 @@ export function verifyTelegramInitData(initData: string, botToken: string): Tele
   if (!suppliedHash) throw new Error('Telegram initData has no hash');
   params.delete('hash');
   const authDate = Number(params.get('auth_date'));
-  if (!Number.isFinite(authDate) || Date.now() / 1000 - authDate > 300) throw new Error('Telegram initData expired');
+  // Telegram keeps a Mini App open for hours with the initData it was launched
+  // with; the client re-authenticates with it whenever the 1-hour JWT expires.
+  if (!Number.isFinite(authDate) || Date.now() / 1000 - authDate > 86_400) throw new Error('Telegram initData expired');
   const checkString = [...params.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${k}=${v}`).join('\n');
   const secret = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
   const expected = crypto.createHmac('sha256', secret).update(checkString).digest('hex');

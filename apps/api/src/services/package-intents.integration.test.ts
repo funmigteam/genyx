@@ -25,12 +25,16 @@ integration('checkout may reopen concurrently, expire and reopen without countin
   await prisma.payment.update({ where: { id: fresh.id }, data: { status: 'CONFIRMED' } });
   await expect(getOrCreatePackageIntent(user.id, quote, later)).rejects.toThrow('confirmed');
 });
-integration('submitted expired payment is protected and confirmed elite can be bought again', async () => {
+integration('a submitted payment does not block checkout and confirmed elite can be bought again', async () => {
   const user = await prisma.user.create({ data: { telegramId: BigInt(`0x${randomUUID().replaceAll('-', '').slice(0, 12)}`) } });
   const now = new Date();
   const first = await getOrCreatePackageIntent(user.id, quote, now);
   await prisma.payment.update({ where: { id: first.id }, data: { chainTxHash: randomUUID() } });
-  await expect(getOrCreatePackageIntent(user.id, quote, new Date(now.getTime() + 31 * 60000))).rejects.toThrow('verified');
+  // A submitted payment stays reconcilable but no longer blocks a fresh checkout.
+  const retry = await getOrCreatePackageIntent(user.id, quote, new Date(now.getTime() + 31 * 60000));
+  expect(retry.id).not.toBe(first.id);
+  await expect(getOrCreatePackageIntent(user.id, { ...quote, packageCode: 'DIAMOND' }, now)).rejects.toThrow('opening package');
+  await prisma.payment.update({ where: { id: retry.id }, data: { status: 'CONFIRMED' } });
   const elite = await getOrCreatePackageIntent(user.id, { ...quote, packageCode: 'DIAMOND' }, now);
   await prisma.payment.update({ where: { id: elite.id }, data: { status: 'CONFIRMED' } });
   expect((await getOrCreatePackageIntent(user.id, { ...quote, packageCode: 'DIAMOND' }, now)).id).not.toBe(elite.id);

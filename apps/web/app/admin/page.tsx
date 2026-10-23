@@ -11,6 +11,8 @@ import { ProgressReset } from "./progress-reset";
 import { MemberControls } from "./member-controls";
 import { DatabaseReset } from "./database-reset";
 import { SupportPanel } from "../member-menu";
+import { StatusStrip } from "./status-strip";
+import { InvestmentsAdmin } from "./investments-admin";
 import "./admin-enhanced.css";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
@@ -82,9 +84,22 @@ type Channel = {
   _count?: { memberships: number };
 };
 
+const ADMIN_SECTIONS = [
+  { id: "dashboard", group: "نمای کلی", label: "داشبورد", help: "وضعیت لحظه‌ای سیستم، صف‌های در انتظار و آمار کلی.", roles: ["SUPER_ADMIN", "FINANCE_ADMIN", "CONTENT_ADMIN"] },
+  { id: "finance", group: "مالی", label: "واریز و برداشت", help: "پرداخت‌ها، برداشت‌ها، شارژ دستی موجودی و خروجی کامل اکسل.", roles: ["SUPER_ADMIN", "FINANCE_ADMIN"] },
+  { id: "investments", group: "مالی", label: "اینوست پک‌ها", help: "سرمایه‌گذاری‌های کاربران، سود پرداخت‌شده و موجودی صندوق اینوست.", roles: ["SUPER_ADMIN", "FINANCE_ADMIN"] },
+  { id: "products", group: "محصولات", label: "پکیج‌ها و شاپ", help: "قیمت، Max Cap، GEN و توضیحات توکن پکیج‌ها و آیتم‌های شاپ (از جمله لاتاری پک‌ها).", roles: ["SUPER_ADMIN", "CONTENT_ADMIN"] },
+  { id: "lottery", group: "محصولات", label: "لاتاری", help: "ساخت تالارها، جوایز و قیمت لاتاری پک‌ها (هر پک مخصوص یک تالار).", roles: ["SUPER_ADMIN"] },
+  { id: "tasks", group: "محتوا", label: "تسک‌ها", help: "ساخت، انتشار و تأیید تسک‌ها و رنک‌ها.", roles: ["SUPER_ADMIN", "CONTENT_ADMIN"] },
+  { id: "community", group: "محتوا", label: "کاربران و پشتیبانی", help: "کانال‌های اجباری، لیست کاربران و تیکت‌های پشتیبانی.", roles: ["SUPER_ADMIN", "CONTENT_ADMIN"] },
+  { id: "settings", group: "تنظیمات", label: "برداشت و اطلاعیه", help: "قطع/وصل درخواست برداشت جدید و ارسال اطلاعیه به همه کاربران.", roles: ["SUPER_ADMIN"] },
+  { id: "danger", group: "تنظیمات", label: "ناحیه خطر", help: "ریست پیشرفت و ریست دیتابیس — غیرقابل بازگشت.", roles: ["SUPER_ADMIN"] },
+] as const;
+
 export default function AdminPage() {
   const [savedToken, setSavedToken] = useState("");
   const [role, setRole] = useState("");
+  const [view, setView] = useState("dashboard");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [packages, setPackages] = useState<Package[]>([]);
@@ -356,25 +371,28 @@ export default function AdminPage() {
             <small>پنل مدیریت</small>
           </div>
         </div>
-        <nav>
-          <span>نمای کلی</span>
-          <a href="#dashboard">داشبورد</a>
-          <span>عملیات</span>
-          <a href="#tasks">تسک‌ها</a>
-          <a href="#packages">پکیج‌ها</a>
-          <a href="#shop">شاپ</a>
-          <a href="#channels">کانال‌ها</a>
-          <a href="#auction-rooms">مزایده</a>
-          <a href="#users">کاربران</a>
-          <a href="#finance">مالی</a>
+        <nav aria-label="بخش‌های پنل">
+          {ADMIN_SECTIONS.filter((section) => (section.roles as readonly string[]).includes(role)).map((section, index, list) => (
+            <span key={section.id} style={{ display: "contents" }}>
+              {(index === 0 || list[index - 1].group !== section.group) && <span>{section.group}</span>}
+              <button
+                type="button"
+                className={`admin-nav-item${view === section.id ? " active" : ""}${section.id === "danger" ? " danger" : ""}`}
+                aria-current={view === section.id ? "page" : undefined}
+                onClick={() => { setView(section.id); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+              >
+                {section.label}
+              </button>
+            </span>
+          ))}
         </nav>
       </aside>
       <section className="admin-main">
         <header className="admin-top" id="dashboard">
           <div>
             <span>GENYX CONTROL</span>
-            <h1>پنل مدیریت GENYX</h1>
-            <p>مدیریت پکیج‌ها، تسک‌های روزانه، شاپ و کانال‌ها</p>
+            <h1>{ADMIN_SECTIONS.find((section) => section.id === view)?.label ?? "پنل مدیریت GENYX"}</h1>
+            <p>{ADMIN_SECTIONS.find((section) => section.id === view)?.help}</p>
           </div>
           <div className="admin-auth">
             <button onClick={authenticateWithTelegram}>
@@ -385,36 +403,50 @@ export default function AdminPage() {
         <p className="admin-notice" role="status">
           {notice}
         </p>
-        {savedToken && ["SUPER_ADMIN", "FINANCE_ADMIN"].includes(role) && (
+        {!savedToken && (
+          <section className="admin-card" dir="rtl">
+            <h2>ورود به پنل</h2>
+            <p>پنل را از داخل تلگرام باز کنید و روی «ورود با تلگرام» بزنید. فقط حساب‌های مدیر دسترسی دارند.</p>
+          </section>
+        )}
+        {savedToken && view === "dashboard" && (
+          <>
+            <StatusStrip request={request} go={setView} superAdmin={role === "SUPER_ADMIN"} />
+            <Overview token={savedToken} superAdmin={role === "SUPER_ADMIN"} />
+          </>
+        )}
+        {savedToken && view === "finance" && ["SUPER_ADMIN", "FINANCE_ADMIN"].includes(role) && (
           <FinancePanel token={savedToken} />
         )}
-        {savedToken && (
-          <Overview token={savedToken} superAdmin={role === "SUPER_ADMIN"} />
+        {savedToken && view === "investments" && ["SUPER_ADMIN", "FINANCE_ADMIN"].includes(role) && (
+          <InvestmentsAdmin request={request} />
         )}
-        {savedToken && role === "SUPER_ADMIN" && (
+        {savedToken && view === "lottery" && role === "SUPER_ADMIN" && (
           <AutomationPanel token={savedToken} />
         )}
-        {savedToken && ["SUPER_ADMIN", "CONTENT_ADMIN"].includes(role) && (
+        {savedToken && view === "tasks" && ["SUPER_ADMIN", "CONTENT_ADMIN"].includes(role) && (
           <TaskManagement request={request} tasks={tasks} changed={refresh} />
         )}
-        {savedToken && role === "SUPER_ADMIN" && (
-          <ProgressReset request={request} />
-        )}
-        {savedToken && role === "SUPER_ADMIN" && (
-          <DatabaseReset request={request} />
-        )}
-        {savedToken && role === "SUPER_ADMIN" && (
+        {savedToken && view === "settings" && role === "SUPER_ADMIN" && (
           <MemberControls request={request} />
         )}
-        {savedToken && ["SUPER_ADMIN", "CONTENT_ADMIN"].includes(role) && (
+        {savedToken && view === "community" && ["SUPER_ADMIN", "CONTENT_ADMIN"].includes(role) && (
           <SupportPanel request={request} admin />
+        )}
+        {savedToken && view === "danger" && role === "SUPER_ADMIN" && (
+          <>
+            <p className="admin-danger-note" role="note">این بخش عملیات غیرقابل بازگشت دارد. قبل از هر کاری از دیتابیس بکاپ بگیرید.</p>
+            <ProgressReset request={request} />
+            <DatabaseReset request={request} />
+          </>
         )}
         <fieldset
           disabled={!savedToken || role === "FINANCE_ADMIN"}
           style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
         >
           <section className="admin-grid">
-            <TaskEditor request={request} changed={refresh} />
+            {view === "tasks" && <TaskEditor request={request} changed={refresh} />}
+            {view === "products" && (
             <article className="admin-card" id="packages">
               <span>قیمت پکیج‌ها</span>
               <h2>قیمت و توضیحات فروشگاه</h2>
@@ -549,6 +581,7 @@ export default function AdminPage() {
                 ذخیره پکیج‌ها
               </button>
             </article>
+            )}
           </section>
         </fieldset>
         <fieldset
@@ -556,6 +589,7 @@ export default function AdminPage() {
           style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
         >
           <section className="admin-grid">
+            {view === "products" && (
             <article className="admin-card" id="shop">
               <span>فروشگاه</span>
               <h2>آیتم‌های قابل خرید و پاداش</h2>
@@ -828,6 +862,8 @@ export default function AdminPage() {
                 ))}
               </div>
             </article>
+            )}
+            {view === "community" && (
             <article className="admin-card" id="channels">
               <span>کانال‌های اجباری</span>
               <h2>عضویت اجباری</h2>
@@ -897,7 +933,9 @@ export default function AdminPage() {
                 ))}
               </div>
             </article>
+            )}
           </section>
+          {view === "tasks" && (
           <section className="admin-card admin-wide">
             <span>تسک‌ها</span>
             <h2>مدیریت تسک‌های روزانه</h2>
@@ -912,8 +950,8 @@ export default function AdminPage() {
                       <small>
                         {task.kind.replaceAll("_", " ")} ·{" "}
                         {task.dayNumber
-                          ? `روز ${task.dayNumber}`
-                          : "روزانه / قدیمی"}
+                          ? `روز ${task.dayNumber} فصل (مخفی)`
+                          : "روزانه / یک‌بار"}
                       </small>
                     </div>
                     <span className={`status ${task.status.toLowerCase()}`}>
@@ -925,6 +963,8 @@ export default function AdminPage() {
               )}
             </div>
           </section>
+          )}
+          {view === "community" && (
           <section className="admin-card admin-wide">
             <span id="users">کاربران تلگرام</span>
             <h2>کاربران ثبت‌شده</h2>
@@ -973,6 +1013,7 @@ export default function AdminPage() {
               )}
             </div>
           </section>
+          )}
         </fieldset>
       </section>
     </main>

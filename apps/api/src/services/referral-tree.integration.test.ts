@@ -7,7 +7,8 @@ const enabled = process.env.GENYX_ISOLATED_TEST_DB === 'true';
 if (enabled) { const url = new URL(process.env.DATABASE_URL ?? ''); if (url.hostname !== '127.0.0.1' || url.pathname !== '/genyx_integration') throw new Error('Isolated database required'); }
 const integration = enabled ? it : it.skip;
 afterAll(() => prisma.$disconnect());
-const user = () => prisma.user.create({ data: { telegramId: BigInt('0x' + randomUUID().replaceAll('-', '').slice(0, 12)), referralCode: randomUUID() } });
+// The team view lists only members with an active package.
+const user = () => prisma.user.create({ data: { telegramId: BigInt('0x' + randomUUID().replaceAll('-', '').slice(0, 12)), referralCode: randomUUID(), activePackageCode: 'BRONZE' } });
 integration('referral branches include descendants but reject outsiders and prevent cycles', async () => {
   const root = await user(), child = await user(), grandchild = await user(), outsider = await user();
   await assignSponsor(child.id, root.referralCode!);

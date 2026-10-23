@@ -104,6 +104,10 @@ Never commit `.env`, `.env.production`, mnemonic files, bot tokens, API keys, da
 | `TONAPI_KEY` | TonAPI key used for payment lookup |
 | `AUTOMATION_ENABLED` | Enables payment reconciliation worker |
 | `AUTOMATION_POLL_INTERVAL_MS` | Worker interval in milliseconds |
+| `PAYOUT_MODE` | `MANUAL` (default) or `AUTOMATIC`; automatic mode refuses to boot unless the signer below is complete and matches |
+| `PAYOUT_WALLET_ADDRESS` | Payout hot wallet (W5 / V5R1) that sends withdrawals |
+| `PAYOUT_SECRET_HOST_PATH` | Root-only host file containing the payout wallet's 24 words, mounted into the API |
+| `AUTO_PAYOUT_MAX_USDT` | Largest withdrawal paid without admin review (default `50`); larger ones are paid automatically after admin approval |
 
 For mainnet, use a real TonAPI key, a funded treasury wallet, and the official USDT Jetton master address. Rotate any secret that has appeared in a screenshot, terminal capture, chat, commit, or public log.
 
@@ -240,6 +244,10 @@ npm run dev:web
 | `TONAPI_KEY` | کلید TonAPI برای بررسی تراکنش‌ها |
 | `AUTOMATION_ENABLED` | فعال‌سازی Worker تأیید پرداخت |
 | `AUTOMATION_POLL_INTERVAL_MS` | فاصله بررسی پرداخت‌ها بر حسب میلی‌ثانیه |
+| `PAYOUT_MODE` | `MANUAL` (پیش‌فرض) یا `AUTOMATIC`؛ در حالت خودکار اگر تنظیمات ولت برداشت ناقص یا نادرست باشد API بالا نمی‌آید |
+| `PAYOUT_WALLET_ADDRESS` | ولت برداشت (W5 / V5R1) که برداشت‌ها از آن ارسال می‌شود |
+| `PAYOUT_SECRET_HOST_PATH` | فایل فقط‌خواندنی root روی سرور که ۲۴ کلمه ولت برداشت در آن است |
+| `AUTO_PAYOUT_MAX_USDT` | بیشترین مبلغ برداشت بدون بررسی ادمین (پیش‌فرض `50`)؛ مبالغ بالاتر پس از تأیید ادمین خودکار پرداخت می‌شوند |
 
 فایل‌های `.env`، کلیدها، عبارت بازیابی، بکاپ دیتابیس و هرگونه Secret نباید در GitHub قرار بگیرند.
 

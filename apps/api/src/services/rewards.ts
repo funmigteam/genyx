@@ -2,6 +2,7 @@ import { LedgerKind, Prisma } from '@prisma/client';
 import { prisma } from '../prisma.js';
 import { postLedger } from './ledger.js';
 import { allocateReward } from '../domain/reward-allocation.js';
+import { absorbOverflow, consumeCapacity, incomeCapacity } from './investments.js';
 
 type RewardInput = { userId: string; amount: bigint; pool: 'BINARY' | 'REWARD'; idempotencyKey: string; referenceType: string; referenceId: string; kind: LedgerKind };
 // Callers with an existing transaction must pass it; never nest transactions.
@@ -18,13 +19,20 @@ export async function creditRewardInTransaction(tx: Prisma.TransactionClient, in
   }
   const user = await tx.user.findUniqueOrThrow({ where: { id: input.userId } });
   const balance = await tx.ledgerEntry.aggregate({ where: { accountId: pool.id }, _sum: { credit: true, debit: true } });
-  const allocation = allocateReward(input.amount, user.maxCap, user.capConsumed, (balance._sum.credit ?? 0n) - (balance._sum.debit ?? 0n));
+  const poolBalance = (balance._sum.credit ?? 0n) - (balance._sum.debit ?? 0n);
+  // The cap is the token package's Max Cap plus every active investment's Max Cap.
+  const capacity = await incomeCapacity(tx, user.id);
+  const allocation = allocateReward(input.amount, capacity.total, 0n, poolBalance);
   const receipt = await tx.rewardReceipt.create({ data: { userId: input.userId, idempotencyKey: input.idempotencyKey, pool: input.pool, requested: input.amount, ...allocation, referenceType: input.referenceType, referenceId: input.referenceId } });
   if (allocation.credited > 0n) {
     const recipient = await tx.ledgerAccount.upsert({ where: { code: `USER:${user.id}:USDC:AVAILABLE` }, create: { userId: user.id, code: `USER:${user.id}:USDC:AVAILABLE`, currency: 'USDC', type: 'AVAILABLE' }, update: {} });
     await postLedger({ idempotencyKey: `reward:${receipt.id}`, kind: input.kind, referenceType: input.referenceType, referenceId: input.referenceId, postings: [{ accountId: pool.id, debit: allocation.credited }, { accountId: recipient.id, credit: allocation.credited }] }, tx);
-    await tx.user.update({ where: { id: user.id }, data: { capConsumed: { increment: allocation.credited } } });
+    await consumeCapacity(tx, user.id, allocation.credited);
   }
+  // Income above the Max Cap buys investment packs automatically instead of being burned.
+  const funded = poolBalance - allocation.credited;
+  const overflow = allocation.retained < funded ? allocation.retained : funded;
+  if (overflow > 0n) await absorbOverflow(tx, user.id, pool.id, overflow, `reward:${receipt.id}`, input.kind);
   return receipt;
 }
 export async function creditReward(input: RewardInput) {

@@ -1,18 +1,28 @@
 import { prisma } from "../prisma.js";
-import { levelForXp } from "../domain/progression.js";
+import { rankLevel, rankLevels } from "./ranks.js";
+import { rankName } from "../domain/ranks.js";
 import { checkChannelMembership } from "./task-verification.js";
 import { binaryCyclePolicy } from "../domain/economics-v2.js";
 import { openingActive } from "./package-pricing.js";
+import { DIRECT_REFERRAL_CYCLE_COMMISSION } from "./direct-referral.js";
+
+/** USDT held to pay member rewards: binary cycles and rank/referral rewards. */
+async function payoutPool() {
+  const codes = ["SYSTEM:USDC:BINARY", "SYSTEM:USDC:REWARD"];
+  const rows = await prisma.$queryRaw<Array<{ code: string; balance: bigint }>>`
+    SELECT a.code, COALESCE(SUM(e.credit - e.debit), 0)::bigint AS balance
+    FROM "LedgerAccount" a LEFT JOIN "LedgerEntry" e ON e."accountId" = a.id
+    WHERE a.code = ANY(${codes}) GROUP BY a.code`;
+  const of = (code: string) => rows.find((row) => row.code === code)?.balance ?? 0n;
+  const binary = of(codes[0]), reward = of(codes[1]);
+  return { binary, reward, total: binary + reward };
+}
 
 export async function profileStats(userId: string) {
-  const [user, position, season, nodes, direct, receipts, team, cycleSettings] =
+  const [user, position, nodes, direct, receipts, team, cycleSettings] =
     await Promise.all([
       prisma.user.findUniqueOrThrow({ where: { id: userId } }),
       prisma.binaryPosition.findUnique({ where: { userId } }),
-      prisma.seasonEnrollment.findFirst({
-        where: { userId, currentDay: { gt: 0 } },
-        orderBy: { season: "desc" },
-      }),
       prisma.payment.count({
         where: { userId, purpose: "PACKAGE", status: "CONFIRMED" },
       }),
@@ -45,18 +55,37 @@ export async function profileStats(userId: string) {
   );
   // Lifetime volumes are intentionally exposed to members: settlements consume
   // the operational balance, but the team volume history must never decrease.
+  const level = await rankLevel(prisma, user.id);
+  const activeInvestments = await prisma.investment.findMany({ where: { userId, status: "ACTIVE" }, select: { maxCap: true, valueConsumed: true } });
+  const investmentCaps = activeInvestments.reduce((sum, row) => ({ maxCap: sum.maxCap + row.maxCap, used: sum.used + row.valueConsumed }), { maxCap: 0n, used: 0n });
+  const directReceipts = await prisma.rewardReceipt.aggregate({
+    where: { userId, idempotencyKey: { startsWith: "direct-referral:" } },
+    _sum: { requested: true, credited: true },
+    _count: { _all: true },
+  });
   return {
+    // Direct Referral Cycle Commission: 0.5 USDT per cycle of each direct
+    // referral's first purchase. Cycles count what was earned, even if part
+    // was above the Max Cap.
+    directReferral: {
+      purchases: directReceipts._count._all,
+      cycles: (directReceipts._sum.requested ?? 0n) / DIRECT_REFERRAL_CYCLE_COMMISSION,
+      commission: directReceipts._sum.credited ?? 0n,
+      perCycle: DIRECT_REFERRAL_CYCLE_COMMISSION,
+    },
+    // The payout pool is shown from RISE (level 1) upward.
+    payoutPool: level >= 1 ? await payoutPool() : null,
     displayName: user.displayName || user.firstName || "GENYX",
     shareCode: user.referralCode,
     publicProfile: user.publicProfile,
     nodes,
     direct,
     team: team[0]?.count ?? 0n,
-    maxCap: user.maxCap,
-    capConsumed: user.capConsumed,
-    level: levelForXp(user.xp).level,
-    season: season?.season ?? 0,
-    day: season?.currentDay ?? 0,
+    // Total Max Cap = token package + every active investment pack.
+    maxCap: user.maxCap + investmentCaps.maxCap,
+    capConsumed: user.capConsumed + investmentCaps.used,
+    level,
+    rank: rankName(level),
     leftVolume: position?.leftLifetime ?? 0n,
     rightVolume: position?.rightLifetime ?? 0n,
     pendingLeftVolume: position?.leftVolume ?? 0n,
@@ -98,88 +127,57 @@ export async function checkRequiredChannels(userId: string, token: string) {
   return { verified: rows.every((row) => row.verified), channels: rows };
 }
 
+const LEADERBOARD_INCOME = ["BINARY_COMMISSION", "DAILY_GIFT", "SEASON_REWARD", "LOTTERY_PRIZE"];
+
+/**
+ * Rank leaderboards a member may see: their own rank and every rank below it
+ * (levels 0…their level). Within each rank, members are ordered by credited
+ * USDT income. Higher ranks stay hidden.
+ */
 export async function leaderboard(userId: string) {
-  const [rankTasks, claims] = await Promise.all([
-    prisma.task.findMany({
-      where: { rankOrder: { not: null } },
-      select: { id: true, rankOrder: true, title: true },
-    }),
-    prisma.taskClaim.findMany({
-      where: { settledAt: { not: null }, task: { rankOrder: { not: null } } },
-      select: { userId: true, task: { select: { rankOrder: true } } },
-    }),
-  ]);
-  const myRank = Math.max(
-    0,
-    ...claims
-      .filter((claim) => claim.userId === userId)
-      .map((claim) => claim.task.rankOrder ?? 0),
-  );
-  const rankTitle =
-    rankTasks.find((task) => task.rankOrder === myRank)?.title ?? "UNRANKED";
-  const sameRankIds = [
-    ...new Set(
-      claims
-        .filter((claim) => (claim.task.rankOrder ?? 0) === myRank)
-        .map((claim) => claim.userId),
-    ),
-  ];
-  if (myRank === 0) sameRankIds.push(userId);
-  const users = await prisma.user.findMany({
-    where: { id: { in: [...new Set(sameRankIds)] } },
-    select: {
-      id: true,
-      displayName: true,
-      firstName: true,
-      publicProfile: true,
-      referralCode: true,
-      accounts: {
-        where: { currency: "USDC", type: "AVAILABLE" },
-        select: {
-          entries: {
-            where: {
-              credit: { gt: 0 },
-              transaction: {
-                kind: {
-                  in: [
-                    "BINARY_COMMISSION",
-                    "DAILY_GIFT",
-                    "SEASON_REWARD",
-                    "LOTTERY_PRIZE",
-                  ],
-                },
-              },
-            },
-            select: { credit: true },
-          },
-        },
-      },
-    },
+  const myRank = await rankLevel(prisma, userId);
+  const members = await prisma.user.findMany({
+    where: { OR: [{ id: userId }, { role: "USER", activePackageCode: { not: null } }] },
+    select: { id: true, displayName: true, firstName: true, publicProfile: true, referralCode: true },
   });
-  const rows = users
-    .map((user) => ({
-      userId: user.id,
-      amount: user.accounts
-        .flatMap((account) => account.entries)
-        .reduce((sum, entry) => sum + entry.credit, 0n),
-      name: user.publicProfile
-        ? user.displayName || user.firstName || "GENYX user"
-        : "GENYX user",
-      shareCode: user.publicProfile ? user.referralCode : null,
-    }))
-    .sort((first, second) =>
-      second.amount > first.amount
-        ? 1
-        : second.amount < first.amount
-          ? -1
-          : first.userId.localeCompare(second.userId),
-    )
-    .slice(0, 100)
-    .map((row, index) => ({ ...row, rank: index + 1 }));
+  const levels = await rankLevels(prisma, members.map((member) => member.id));
+  const visible = members.filter((member) => (levels.get(member.id) ?? 0) <= myRank);
+  const income = new Map(
+    (visible.length
+      ? await prisma.$queryRaw<Array<{ userId: string; amount: bigint }>>`
+        SELECT a."userId", COALESCE(SUM(e.credit), 0)::bigint AS amount
+        FROM "LedgerEntry" e
+        JOIN "LedgerAccount" a ON a.id = e."accountId"
+        JOIN "LedgerTransaction" t ON t.id = e."transactionId"
+        WHERE a."userId" = ANY(${visible.map((member) => member.id)})
+          AND a.currency = 'USDC' AND a.type = 'AVAILABLE' AND e.credit > 0
+          AND t.kind::text = ANY(${LEADERBOARD_INCOME})
+        GROUP BY a."userId"`
+      : []
+    ).map((row) => [row.userId, row.amount]),
+  );
+  const groups = Array.from({ length: myRank + 1 }, (_, index) => myRank - index).map((level) => {
+    const atLevel = visible.filter((member) => (levels.get(member.id) ?? 0) === level);
+    const rows = atLevel
+      .map((member) => ({
+        userId: member.id,
+        amount: income.get(member.id) ?? 0n,
+        name: member.publicProfile ? member.displayName || member.firstName || "GENYX user" : "GENYX user",
+        shareCode: member.publicProfile ? member.referralCode : null,
+      }))
+      .sort((first, second) =>
+        second.amount > first.amount ? 1 : second.amount < first.amount ? -1 : first.userId.localeCompare(second.userId),
+      )
+      .slice(0, 100)
+      .map((row, index) => ({ ...row, rank: index + 1, isMe: row.userId === userId }));
+    return { level, rank: rankName(level), members: atLevel.length, rows };
+  });
+  const own = groups[0];
   return {
-    me: rows.find((row) => row.userId === userId) ?? { rank: null },
+    me: own.rows.find((row) => row.isMe) ?? { rank: null },
     organizationalRank: myRank,
-    organizationalTitle: rankTitle,
-    rows,
+    organizationalTitle: rankName(myRank),
+    rows: own.rows,
+    groups,
   };
 }

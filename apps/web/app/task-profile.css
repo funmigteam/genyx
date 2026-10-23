@@ -92,3 +92,8 @@ section.binary-summary { background: linear-gradient(135deg, #142238, #13172a); 
 .packs > article .package-description { flex:1; }
 .packs > article .primary { margin-top:auto; min-height:44px; }
 @media(max-width:480px) { .user-wallet-card { padding:20px 16px; } .task-list article { flex-wrap:wrap; } .task-list article > button { width:100%; } }
+.rank-tabs{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px;margin-top:10px;scroll-snap-type:x proximity}
+.rank-tabs button{flex:none;display:grid;gap:4px;justify-items:center;scroll-snap-align:start;padding:9px 12px;border:1px solid #3d5875;border-radius:12px;background:#0f1d30;color:#d2e3f3}
+.rank-tabs button[aria-selected="true"]{border-color:#f7d46b;background:#1a2638;box-shadow:0 0 14px #d9a44133}
+.rank-tabs small{font-size:10px;color:#8ea4ba}
+.rank-leaderboard article.me{border-color:#8dffb0;background:#10241c}

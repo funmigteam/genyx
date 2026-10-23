@@ -8,11 +8,11 @@ describe('task verification', () => {
     expect(isChannelMember({ status: 'administrator' })).toBe(true);
     expect(isChannelMember({ status: 'member' })).toBe(true);
   });
-  it('uses accumulated XP and the existing progression formula', () => {
+  it('checks XP, rank-based level and game rounds', () => {
     expect(meetsTaskTarget('XP_REACHED', 100, 99n)).toBe(false);
     expect(meetsTaskTarget('XP_REACHED', 100, 100n)).toBe(true);
-    expect(meetsTaskTarget('LEVEL_REACHED', 2, 249n)).toBe(false);
-    expect(meetsTaskTarget('LEVEL_REACHED', 2, 250n)).toBe(true);
+    expect(meetsTaskTarget('LEVEL_REACHED', 2, 10_000n, 0, 1)).toBe(false);
+    expect(meetsTaskTarget('LEVEL_REACHED', 2, 0n, 0, 2)).toBe(true);
     expect(meetsTaskTarget('GAME_PLAYED', 5, 1000n, 4)).toBe(false);
     expect(meetsTaskTarget('GAME_PLAYED', 5, 0n, 5)).toBe(true);
   });

@@ -1,6 +1,6 @@
 import { createWorker } from './worker-runner.js';
 import { findPayoutNotification } from '../domain/jetton-confirmation.js';
-import { broadcastSavedPayout } from '../domain/payout-outbox.js';
+import { broadcastSavedPayout, signedPayoutSeqno } from '../domain/payout-outbox.js';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { Address, JettonMaster, beginCell, external, internal, SendMode, storeMessage, toNano, WalletContractV5R1 } from '@ton/ton';
@@ -189,13 +189,26 @@ async function recoverOutbox() {
   await prisma.payoutJob.updateMany({ where: { status: 'SENDING', outboxVersion: 1, signedBoc: null, updatedAt: { lt: new Date(Date.now() - 300000) } }, data: { status: 'QUEUED', lastError: 'Interrupted before message persistence' } });
   const jobs = await prisma.payoutJob.findMany({ where: { status: { in: ['SUBMITTED', 'MANUAL_REVIEW'] }, outboxVersion: 1, signedBoc: { not: null }, validUntil: { gt: new Date() } }, take: 10 });
   const client = tonApi();
-  // Once validUntil has passed, an external message cannot be executed. Check
-  // the chain first and only then allow a fresh signed message to be created.
+  // Once validUntil has passed, an external message cannot be executed. A
+  // provider lookup that finds nothing is NOT proof it never ran (that
+  // assumption paid one withdrawal four times). Only the wallet seqno is: if
+  // it has not moved past the signed seqno, the message never executed.
   const expired = await prisma.payoutJob.findMany({ where: { status: PayoutJobStatus.SUBMITTED, outboxVersion: 1, signedBoc: { not: null }, validUntil: { lt: new Date() }, chainTxHash: null }, take: 10 });
-  for (const job of expired) {
-    let foundOnChain = false;
-    try { foundOnChain = Boolean((await client.blockchain.getBlockchainTransactionByMessageHash(messageHashHex(job.externalMessageHash!))).hash); } catch { /* An expired message not found by the provider cannot execute. */ }
-    if (!foundOnChain) await prisma.payoutJob.updateMany({ where: { id: job.id, status: PayoutJobStatus.SUBMITTED, chainTxHash: null, validUntil: { lt: new Date() } }, data: { status: PayoutJobStatus.QUEUED, externalMessageHash: null, signedBoc: null, validUntil: null, submittedAt: null, outboxVersion: null, lastError: 'Expired message was not found on chain; queued for a fresh payout' } });
+  if (expired.length) {
+    const { wallet } = await payoutWallet();
+    const currentSeqno = await new ContractAdapter(client).open(wallet).getSeqno();
+    for (const job of expired) {
+      let signedSeqno: number | null = null;
+      try { signedSeqno = signedPayoutSeqno(job.signedBoc!); } catch { /* Unparseable: treat as possibly executed. */ }
+      if (signedSeqno !== null && currentSeqno <= signedSeqno) {
+        await prisma.payoutJob.updateMany({ where: { id: job.id, status: PayoutJobStatus.SUBMITTED, chainTxHash: null, validUntil: { lt: new Date() } }, data: { status: PayoutJobStatus.QUEUED, externalMessageHash: null, signedBoc: null, validUntil: null, submittedAt: null, outboxVersion: null, lastError: 'Expired message never executed (wallet seqno unchanged); queued for a fresh payout' } });
+      } else {
+        // The wallet moved past this seqno, so the payout may have been sent.
+        // Never re-sign it; confirmSubmittedJobs keeps looking for the proof
+        // and settles it automatically once found.
+        await prisma.payoutJob.updateMany({ where: { id: job.id, status: PayoutJobStatus.SUBMITTED, chainTxHash: null }, data: { status: PayoutJobStatus.MANUAL_REVIEW, lastError: 'Expired message may have executed (wallet seqno advanced); not re-sent. Awaiting on-chain confirmation or operator review.' } });
+      }
+    }
   }
   for (const job of jobs) {
     if (!job.externalMessageHash || !job.validUntil) continue;
@@ -205,8 +218,11 @@ async function recoverOutbox() {
   }
 }
 
-export function startPayoutWorker(log: { info: (value: unknown, message?: string) => void; error: (value: unknown, message?: string) => void }) {
+export async function startPayoutWorker(log: { info: (value: unknown, message?: string) => void; error: (value: unknown, message?: string) => void }) {
   if (!payoutAutomationReady) { log.info({ payoutAutomationReady: false }, 'Payout automation is disabled or incomplete'); return; }
+  // Fail at boot rather than auto-approving withdrawals that can never be signed.
+  const { wallet } = await payoutWallet();
+  log.info({ payoutWallet: wallet.address.toString({ bounceable: false }), autoPayoutMaxUsdt: env.AUTO_PAYOUT_MAX_USDT.toString() }, 'Automatic payouts enabled');
   const worker = createWorker('payout', env.AUTOMATION_POLL_INTERVAL_MS, async () => {
     await createJobsForApprovedWithdrawals();
     await confirmSubmittedJobs();

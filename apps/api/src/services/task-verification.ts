@@ -1,4 +1,3 @@
-import { levelForXp } from "../domain/progression.js";
 
 export function isChannelMember(
   member: { status?: string; is_member?: boolean } | undefined,
@@ -91,10 +90,12 @@ export function meetsTaskTarget(
   target: number,
   xp: bigint,
   rounds = 0,
+  level = 0,
 ) {
   if (!Number.isSafeInteger(target) || target < 1) return false;
   if (kind === "XP_REACHED") return xp >= BigInt(target);
-  if (kind === "LEVEL_REACHED") return levelForXp(xp).level >= target;
+  // Level is the organizational rank (0–12).
+  if (kind === "LEVEL_REACHED") return level >= target;
   if (kind === "GAME_PLAYED") return rounds >= target;
   return false;
 }

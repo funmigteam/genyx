@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { Address } from '@ton/ton';
 import { prisma } from '../prisma.js';
 import { postLedger, accountBalance } from './ledger.js';
-vi.mock('../config.js', () => ({ economics: { withdrawal: { minimumUsdc: 1000000n, feeBps: 150, maximumPerDay: 2 } }, payoutAutomationReady: false }));
+vi.mock('../config.js', () => ({ env: { AUTO_PAYOUT_MAX_USDT: 50000000n }, economics: { withdrawal: { minimumUsdc: 1000000n, feeBps: 150 } }, payoutAutomationReady: false }));
 import { requestWithdrawal } from './withdrawals.js';
 const enabled = process.env.GENYX_ISOLATED_TEST_DB === 'true';
 if (enabled) { const url = new URL(process.env.DATABASE_URL ?? ''); if (url.hostname !== '127.0.0.1' || url.pathname !== '/genyx_integration') throw new Error('Isolated database required'); }
@@ -26,6 +26,8 @@ integration('withdrawal accepts 1.5 USDT once, enforces verified wallet and prot
   await expect(requestWithdrawal(user.id, 1600000n, address, key)).rejects.toThrow('conflicts');
   await expect(requestWithdrawal(user.id, 500000n, address, randomUUID())).rejects.toThrow('minimum');
   await expect(requestWithdrawal(user.id, 4000000n, address, randomUUID())).rejects.toThrow('Insufficient');
+  // No daily count or value cap: further withdrawals the same day are accepted.
   await requestWithdrawal(user.id, 1000000n, address, randomUUID());
-  await expect(requestWithdrawal(user.id, 1000000n, address, randomUUID())).rejects.toThrow('Daily withdrawal');
+  await requestWithdrawal(user.id, 1000000n, address, randomUUID());
+  expect(await accountBalance(available.id)).toBe(1500000n);
 });

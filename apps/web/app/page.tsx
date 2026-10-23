@@ -17,6 +17,10 @@ import { ProfileEarnings } from "./profile-earnings";
 import { MemberMenu, SupportPanel, NotificationsPanel } from "./member-menu";
 import { Leaderboard } from "./leaderboard";
 import { FinancialFlows } from "./financial-flows";
+import { TonConnectPay, type TonConnectTransfer } from "./ton-connect-pay";
+import { InvestmentPanel } from "./investments";
+import { useCelebration } from "./celebration";
+import { CosmeticPreview, ProfileStudio } from "./profile-studio";
 import { init as initTelegramSdk, retrieveRawInitData } from "@tma.js/sdk";
 import "./payment.css";
 import "./registration.css";
@@ -99,6 +103,9 @@ type Bootstrap = {
     displayName?: string | null;
     photoUrl?: string | null;
     avatarStyle?: string;
+    profileBanner?: string | null;
+    profileNameEffect?: string | null;
+    profileBio?: string | null;
     profileStyles?: string[];
     language: string;
     languageChosen: boolean;
@@ -109,10 +116,16 @@ type Bootstrap = {
     genSpent: string;
     totalDeposited: string;
     totalWithdrawn: string;
-    level: { level: number; current: string; required: string };
+    // Level IS the organizational rank (0–12); progress is in Fixed Cycles.
+    level: {
+      level: number;
+      rank: string;
+      nextRank: string | null;
+      current: string;
+      required: string;
+    };
   };
   balances: { gen: string; usdc: string };
-  season: { progress: number; currentDay?: number; eligibleSeasonTwo: boolean };
   tasks: Task[];
   shopItems: ShopItem[];
   channels: Channel[];
@@ -234,6 +247,9 @@ export default function Home() {
     [notice, setNotice] = useState(""),
     [selected, setSelected] = useState<PackageCard | null>(null),
     [tour, setTour] = useState(false);
+  const tokenRef = useRef(""),
+    initDataRef = useRef("");
+  const [celebration, celebrate] = useCelebration();
   const [entryReady, setEntryReady] = useState(false);
   const [sharedCode, setSharedCode] = useState<string | null>(null);
   const [packs, setPacks] = useState<PackageCard[]>([]);
@@ -289,15 +305,32 @@ export default function Home() {
     };
   }, []);
   const [lottery, setLottery] = useState<LotteryRound[]>([]);
-  const request = async <T,>(path: string, init?: RequestInit): Promise<T> => {
-    const r = await fetch(`${apiUrl}${path}`, {
+  const send = (path: string, init: RequestInit | undefined, bearer: string) =>
+    fetch(`${apiUrl}${path}`, {
       ...init,
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${bearer}`,
         ...(init?.body ? { "Content-Type": "application/json" } : {}),
         ...(init?.headers ?? {}),
       },
     });
+  const request = async <T,>(path: string, init?: RequestInit): Promise<T> => {
+    let r = await send(path, init, tokenRef.current || token);
+    // The session JWT lasts one hour; renew it with the launch initData
+    // instead of leaving a long-open Mini App broken.
+    if (r.status === 401 && initDataRef.current) {
+      const auth = await fetch(`${apiUrl}/v1/auth/telegram`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ initData: initDataRef.current }),
+      });
+      const renewed = await auth.json().catch(() => ({}));
+      if (auth.ok && typeof renewed.token === "string") {
+        tokenRef.current = renewed.token;
+        setToken(renewed.token);
+        r = await send(path, init, renewed.token);
+      }
+    }
     const body = await r.json().catch(() => ({}));
     if (!r.ok) {
       const reference =
@@ -382,6 +415,7 @@ export default function Home() {
         );
         return;
       }
+      initDataRef.current = initData;
       fetch(`${apiUrl}/v1/auth/telegram`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -390,6 +424,7 @@ export default function Home() {
         .then(async (r) => ({ ok: r.ok, b: await r.json() }))
         .then((x) => {
           if (!x.ok) throw new Error(x.b.error);
+          tokenRef.current = x.b.token;
           setToken(x.b.token);
         })
         .catch((error: unknown) =>
@@ -436,6 +471,12 @@ export default function Home() {
           ? "Reward was recorded to your ledger."
           : "Task submitted; verification is pending.",
       );
+      if (result.settledAt)
+        celebrate({
+          kind: "gift",
+          title: "Reward collected",
+          detail: "Your task reward was added to your account.",
+        });
       await refresh();
     } catch (e) {
       setNotice(e instanceof Error ? e.message : "Claim failed.");
@@ -448,6 +489,23 @@ export default function Home() {
         body: JSON.stringify({ method }),
       });
       setNotice("Shop purchase completed.");
+      const item = data?.shopItems.find((entry) => entry.id === id);
+      if (item?.category === "LOTTERY")
+        celebrate({
+          kind: "unlock",
+          title: `${item.title} unlocked`,
+          amount: String((Number(item.usdtPrice ?? 0) / 1_000_000) * 10),
+          unit: "GEN",
+          detail: "Two halls are open for your bids. 10 GEN per 1 USDT was added to your balance.",
+          action: "Go to the lottery",
+          onAction: () => setTab("lottery"),
+        });
+      else
+        celebrate({
+          kind: "purchase",
+          title: item ? `${item.title} is yours` : "Purchase complete",
+          detail: "Your purchase was recorded by the GENYX API.",
+        });
       await refresh();
     } catch (e) {
       setNotice(e instanceof Error ? e.message : "Purchase failed.");
@@ -481,6 +539,7 @@ export default function Home() {
   };
   return (
     <main className="app lion-app">
+      {celebration}
       <div className="lion-watermark" aria-hidden="true">
         <svg viewBox="0 0 420 580">
           <path d="M209 47c-86 0-151 73-151 170 0 58 20 104 53 140-9 38-40 77-40 123 33-18 63-39 87-66 16 8 33 12 51 12 20 0 39-5 55-13 22 28 53 50 86 68-4-47-30-85-40-124 33-36 54-83 54-141 0-96-69-169-155-169Zm-64 123c14-31 42-50 64-50 24 0 50 20 65 50l-24 1c-13-13-27-19-41-19-15 0-30 7-42 19Zm-16 56c15 19 34 28 55 28 20 0 39-9 54-28l-12 57c-6 30-19 47-42 47-22 0-36-17-42-47Zm-44 86c23 34 57 57 99 57 42 0 77-22 100-57-19 52-56 86-100 86-43 0-80-34-99-86Z" />
@@ -530,10 +589,10 @@ export default function Home() {
           </button>
         ))}
         <div className="aside-foot">
-          <span>SEASON 01</span>
-          <b>{Math.round(data?.season.progress ?? 0)}%</b>
+          <span>RANK · {data?.user.level.rank ?? "UNRANKED"}</span>
+          <b>LV {data?.user.level.level ?? 0}</b>
           <div>
-            <i style={{ width: `${data?.season.progress ?? 0}%` }} />
+            <i style={{ width: `${rankProgress(data)}%` }} />
           </div>
         </div>
       </aside>
@@ -541,7 +600,7 @@ export default function Home() {
         <header className="heading">
           <span>
             {active
-              ? `LEVEL ${data?.user.level.level ?? 1}`
+              ? `LEVEL ${data?.user.level.level ?? 0} · ${data?.user.level.rank ?? "UNRANKED"}`
               : "ACCOUNT ACTIVATION"}
           </span>
           <h1>
@@ -624,6 +683,9 @@ export default function Home() {
                   select={setSelected}
                   buy={buy}
                   verify={verify}
+                  request={request}
+                  changed={refresh}
+                  openLottery={() => setTab("lottery")}
                 />
               </>
             )}
@@ -644,7 +706,6 @@ export default function Home() {
                       (Bootstrap["user"] & { id?: string }) | undefined
                   )?.id
                 }
-                mode="auctions"
                 onWithdraw={() => setTab("wallet")}
                 changed={refresh}
               />
@@ -660,13 +721,8 @@ export default function Home() {
                     });
                     await refresh();
                   }}
-                  equip={async (style) => {
-                    await request("/v1/me/profile-style", {
-                      method: "PATCH",
-                      body: JSON.stringify({ style }),
-                    });
-                    await refresh();
-                  }}
+                  request={request}
+                  changed={refresh}
                 />
                 <ProfileEarnings request={request} />
                 <WalletVerification request={request} />
@@ -695,6 +751,13 @@ export default function Home() {
           request={request}
           done={async (message) => {
             setNotice(message);
+            celebrate({
+              kind: "purchase",
+              title: `${selected[3].title || selected[0]} payment sent`,
+              amount: String(selected[1]),
+              unit: "USDT",
+              detail: message,
+            });
             setSelected(null);
             await refresh();
           }}
@@ -771,44 +834,49 @@ function Registration({
       </p>
       <h3>Choose your package</h3>
       <p>
-        Swipe horizontally or use the keyboard to browse all packages. Prices
-        are in USDT on TON.
+        Start with a token package. Investment packs open in your dashboard
+        after it is confirmed. Prices are in USDT on TON.
       </p>
       {error ? (
         <p role="alert">{error}</p>
       ) : !packs.length ? (
         <p role="status">Loading packages…</p>
       ) : (
-        <div
-          className="registration-packages"
-          tabIndex={0}
-          role="region"
-          aria-label="Available packages, scroll horizontally"
-        >
+        <div className="invest-plans token-packs" role="region" aria-label="Available packages">
           {packs.map((p) => (
-            <article key={p[0]}>
-              <span>{p[3].title || p[0]}</span>
-              <h3>
-                {fmt(p[1])} <small>USDT</small>
-              </h3>
-              <p>{fmt(p[2])} GEN</p>
-              <PackageDescription item={p} />
-              <p>
-                Activation requires confirmed payment. Network fees are
-                separate.
-              </p>
-              <button
-                className="primary"
-                disabled={!data}
-                onClick={() => select(p)}
-              >
-                Continue with this package <Icon name="arrow" />
-              </button>
-            </article>
+            <TokenPackageCard key={p[0]} item={p} action="Activate with" disabled={!data} onSelect={() => select(p)} />
           ))}
         </div>
       )}
     </section>
+  );
+}
+
+/** Token package card, laid out like the investment pack cards. */
+function TokenPackageCard({ item, action, disabled, onSelect }: { item: PackageCard; action: string; disabled?: boolean; onSelect: () => void }) {
+  const [code, price, gen, details] = item;
+  const cycles = packageCycles[code] ?? 0;
+  const firstPackage = ["BRONZE", "SILVER", "GOLD"].includes(code);
+  return (
+    <article className="token-pack">
+      <header>
+        <span className="token-pack-name">{details.title || code}</span>
+        <small>{firstPackage ? "Available as a first package" : "After one 11, 33 or 110 USDT package"}</small>
+      </header>
+      <span className="invest-price">
+        {fmt(price)} <small>USDT</small>
+      </span>
+      <dl>
+        <div><dt>GEN tokens</dt><dd>{fmt(gen)} GEN</dd></div>
+        <div><dt>Max cap</dt><dd>{fmt(details.maxCapUsdt ?? 0)} USDT</dd></div>
+        <div><dt>Fixed cycles</dt><dd>{fmt(cycles)}</dd></div>
+        <div><dt>Investment packs up to</dt><dd>{fmt(price * 10)} USDT</dd></div>
+      </dl>
+      <PackageDescription item={item} />
+      <button className="primary" disabled={disabled} onClick={onSelect}>
+        {action} {fmt(price)} USDT
+      </button>
+    </article>
   );
 }
 
@@ -865,6 +933,12 @@ function Metric({
     </article>
   );
 }
+function rankProgress(data: Bootstrap | null) {
+  const level = data?.user.level;
+  if (!level) return 0;
+  if (!level.nextRank) return 100;
+  return Math.min(100, (Number(level.current) / Math.max(1, Number(level.required))) * 100);
+}
 function Dashboard({
   data,
   go,
@@ -876,23 +950,32 @@ function Dashboard({
   return (
     <>
       <section className="hero-grid">
-        <article className="lion-card">
+        <article className="lion-card level-rank-card">
           <span>
-            LEVEL {l?.level ?? 1} / 30{" "}
-            <Info>XP requirements increase at every level.</Info>
+            LEVEL {l?.level ?? 0} / 11{" "}
+            <Info>
+              Your level is your organizational rank. Reach the next rank's
+              Fixed Cycles, then claim it in Tasks to level up.
+            </Info>
           </span>
+          <div className="level-rank-row">
+            <b className="level-number">LV {l?.level ?? 0}</b>
+            <span className={`rank-badge rank-${(l?.rank ?? "UNRANKED").toLowerCase()}`}>
+              {l?.rank ?? "UNRANKED"}
+            </span>
+          </div>
           <b>
-            {fmt(l?.current ?? 0)} <small>/ {fmt(l?.required ?? 250)} XP</small>
+            {fmt(l?.current ?? 0)}{" "}
+            <small>
+              / {fmt(l?.required ?? 0)} Fixed Cycles
+              {l?.nextRank ? ` to ${l.nextRank}` : " · top rank reached"}
+            </small>
           </b>
           <div className="track">
-            <i
-              style={{
-                width: `${Math.min(100, (Number(l?.current ?? 0) / Number(l?.required ?? 250)) * 100)}%`,
-              }}
-            />
+            <i style={{ width: `${rankProgress(data)}%` }} />
           </div>
           <button onClick={() => go("tasks")}>
-            Earn activity XP <Icon name="arrow" />
+            Claim ranks in Tasks <Icon name="arrow" />
           </button>
         </article>
       </section>
@@ -952,29 +1035,13 @@ function Tasks({
   const [rankCelebration, setRankCelebration] = useState<Task | null>(null);
   const [opened, setOpened] = useState<Record<string, boolean>>({}),
     [linkError, setLinkError] = useState("");
-  const currentDay = data?.season.currentDay ?? 0;
-  const groups = new Map<number | null, Task[]>();
-  for (const task of data?.tasks ?? []) {
-    if (
-      task.dayNumber !== null &&
-      task.dayNumber !== undefined &&
-      (task.dayNumber < currentDay || task.dayNumber > currentDay + 1)
-    )
-      continue;
-    const key = task.dayNumber ?? null;
-    groups.set(key, [...(groups.get(key) ?? []), task]);
-  }
-  const dayGroups = [...groups.entries()].sort(([first], [second]) => {
-    if (first === null) return 1;
-    if (second === null) return -1;
-    return first - second;
-  });
-  const groupTitle = (day: number | null) => {
-    if (day === null) return "OTHER MISSIONS";
-    if (day === currentDay) return `DAY ${day} · AVAILABLE NOW`;
-    if (day > currentDay) return `DAY ${day} · LOCKED UNTIL THIS DAY`;
-    return `DAY ${day} · TIME EXPIRED`;
-  };
+  // Ranks first (they are your level), then daily missions, then the rest.
+  const groupOf = (task: Task) => (task.rankOrder ? 0 : task.isDaily ? 1 : 2);
+  const dayGroups = [0, 1, 2]
+    .map((group) => [group, (data?.tasks ?? []).filter((task) => groupOf(task) === group)] as const)
+    .filter(([, tasks]) => tasks.length > 0);
+  const groupTitle = (group: number) =>
+    ["RANKS · YOUR LEVEL", "DAILY MISSIONS", "MISSIONS"][group];
   return (
     <>
       {rankCelebration && (
@@ -1008,32 +1075,18 @@ function Tasks({
         <Icon name="info" />
         <p>
           Open the mission link, then return here to claim. Channel membership
-          and XP / level requirements are checked on the server. External videos
-          do not require viewing verification.
+          and level requirements are checked on the server. Daily missions reset
+          every day at 12:00 Tehran time.
         </p>
       </section>
       <p role="status">{linkError}</p>
       {dayGroups.map(([day, tasks]) => (
-        <section className="task-day-group" key={day ?? "general"}>
+        <section className="task-day-group" key={day}>
           <header>
             <span>{groupTitle(day)}</span>
-            {day !== null && day > currentDay && (
-              <small>Complete the current day first</small>
-            )}
-            {day !== null && day < currentDay && (
-              <small>Rewards are no longer available</small>
-            )}
           </header>
           <div className="task-list">
             {tasks.map((t) => {
-              const futureTask =
-                t.dayNumber !== null &&
-                t.dayNumber !== undefined &&
-                t.dayNumber > currentDay;
-              const expiredTask =
-                t.dayNumber !== null &&
-                t.dayNumber !== undefined &&
-                t.dayNumber < currentDay;
               return (
                 <article
                   key={t.id}
@@ -1066,7 +1119,7 @@ function Tasks({
                         {t.kind === "XP_REACHED"
                           ? "total XP"
                           : t.kind === "LEVEL_REACHED"
-                            ? "level"
+                            ? "level (rank)"
                             : t.kind === "LOTTERY_BID_COUNT"
                               ? "registered lottery bids"
                               : "verified rounds"}
@@ -1079,7 +1132,7 @@ function Tasks({
                       </p>
                     )}
                     <small>
-                      Base reward: {t.rewardGen} GEN · {t.rewardXp} XP ·{" "}
+                      Base reward: {t.rewardGen} GEN ·{" "}
                       {(Number(t.rewardUsdt ?? 0) / 1_000_000).toFixed(2)} USDT.
                       Package multipliers apply.
                     </small>
@@ -1115,11 +1168,7 @@ function Tasks({
                     <b className="state">Reward received</b>
                   ) : t.locked ? (
                     <b className="state">
-                      {futureTask
-                        ? "Locked for a later day"
-                        : expiredTask
-                          ? "Time expired"
-                          : "Locked"}
+                      {t.rankOrder ? "Claim the previous rank first" : "Locked"}
                     </b>
                   ) : t.pending && t.kind === "MANUAL_REVIEW" ? (
                     <b className="state">Awaiting review</b>
@@ -1236,12 +1285,18 @@ function Shop({
   select,
   buy,
   verify,
+  request,
+  changed,
+  openLottery,
 }: {
   data: Bootstrap | null;
   packs: PackageCard[];
   select: (p: PackageCard) => void;
   buy: (id: string, m: "GEN" | "VOUCHER" | "USDT") => void;
   verify: (c: Channel) => void;
+  request: <T>(path: string, init?: RequestInit) => Promise<T>;
+  changed: () => Promise<void>;
+  openLottery: () => void;
 }) {
   const [category, setCategory] = useState("PACKAGE");
   return (
@@ -1252,7 +1307,9 @@ function Shop({
         aria-label="Shop categories"
       >
         {[
-          ["PACKAGE", "Packages"],
+          ["PACKAGE", "Token packages"],
+          // Investment packs open only after a token package is bought.
+          ...(data?.user.package ? [["INVEST", "Investment packs"]] : []),
           ["LOTTERY", "Lottery packs"],
           ["PROFILE", "Custom profile"],
         ].map(([id, label]) => (
@@ -1313,39 +1370,35 @@ function Shop({
           <h2 className="section-title">
             Activate your account{" "}
             <Info>
-              Any 6, 18 or 60 USDT package can be your first purchase. Higher
-              packages require one confirmed opening package.
+              Any 11, 33 or 110 USDT package can be your first purchase. Higher
+              packages require one confirmed opening package. Every 11 USDT is
+              1 Fixed Cycle.
             </Info>
           </h2>
-          <div className="packs">
+          <div className="invest-plans token-packs">
             {packs.map((p) => (
-              <article key={p[0]}>
-                <span>{p[3].title || p[0]}</span>
-                <small>
-                  {["BRONZE", "SILVER", "GOLD"].includes(p[0])
-                    ? "Available as a first package"
-                    : "Requires one confirmed 6, 18 or 60 USDT package"}
-                </small>
-                {Boolean(p[3].appliedDiscountPercent) && (
-                  <small>
-                    <s>{fmt(p[3].regularUsdc ?? 0)} USDT</s> ·{" "}
-                    {p[3].appliedDiscountPercent}% off non-owner share
-                  </small>
-                )}
-                <b>
-                  {fmt(p[1])} <small>USDT</small>
-                </b>
-                <p>Max cap: {fmt(p[3].maxCapUsdt ?? 0)} USDT</p>
-                <p>{fmt(p[2])} GEN</p>
-                <PackageDescription item={p} />
-                <button className="primary" onClick={() => select(p)}>
-                  Choose package <Icon name="arrow" />
-                </button>
-              </article>
+              <TokenPackageCard key={p[0]} item={p} action="Buy" onSelect={() => select(p)} />
             ))}
           </div>
         </>
       )}
+      {category === "INVEST" && data?.user.package && (
+        <InvestmentPanel request={request} changed={changed} />
+      )}
+      {category === "LOTTERY" && (
+        <section className="section-note lottery-shop-note">
+          <p>
+            Each lottery pack belongs to one hall: the C pack for C1 opens C1
+            only, and you buy it once. Every 1 USDT spent on a pack adds 10 GEN
+            to your balance. Each hall shows its pack price; buy it there.
+          </p>
+          <button className="primary" onClick={openLottery}>
+            Open the lottery halls <Icon name="arrow" />
+          </button>
+        </section>
+      )}
+      {category !== "INVEST" && category !== "LOTTERY" && (
+      <>
       <h2 className="section-title">
         Spend GEN in the Shop{" "}
         <Info>
@@ -1357,17 +1410,15 @@ function Shop({
           .filter((i) => i.category === category)
           .map((i) => (
             <article key={i.id}>
-              <div className="shop-icon">
-                <Icon
-                  name={
-                    i.imageKey === "clock"
-                      ? "bolt"
-                      : i.imageKey === "frame"
-                        ? "user"
-                        : "gift"
-                  }
-                />
-              </div>
+              {i.category === "PROFILE" ? (
+                <div className="shop-profile-preview">
+                  <CosmeticPreview itemKey={i.imageKey} />
+                </div>
+              ) : (
+                <div className="shop-icon">
+                  <Icon name="gift" />
+                </div>
+              )}
               <span>{i.category}</span>
               <h3>{i.title}</h3>
               <p>{i.description}</p>
@@ -1401,6 +1452,8 @@ function Shop({
             </article>
           ))}
       </div>
+      </>
+      )}
     </>
   );
 }
@@ -1486,42 +1539,38 @@ function Lottery({
 function Profile({
   data,
   save,
-  equip,
+  request,
+  changed,
 }: {
   data: Bootstrap | null;
   save: (value: { displayName: string; language: string }) => Promise<void>;
-  equip: (style: string) => Promise<void>;
+  request: <T>(path: string, init?: RequestInit) => Promise<T>;
+  changed: () => Promise<void>;
 }) {
   const u = data?.user;
   return (
     <>
-      <section className="profile-card">
-        <div
-          className={`avatar avatar-style-${(u?.avatarStyle ?? "lion").replace(/[^a-zA-Z0-9_-]/g, "")}`}
-        >
-          {u?.photoUrl ? (
-            <img
-              src={u.photoUrl}
-              alt="Telegram profile"
-              referrerPolicy="no-referrer"
-              onError={(e) => {
-                e.currentTarget.style.display = "none";
-              }}
-            />
-          ) : (
-            (u?.displayName || u?.firstName || "G").slice(0, 1).toUpperCase()
-          )}
-        </div>
-        <div>
-          <span>TELEGRAM ACCOUNT</span>
-          <h2>{u?.displayName || u?.firstName || "GENYX Member"}</h2>
-          <p>
-            {u?.username ? "@" + u.username : "No Telegram username"} · ID{" "}
-            {u?.telegramId ?? "—"}
-          </p>
-        </div>
-      </section>
+      {u && (
+        <ProfileStudio
+          user={u}
+          items={data?.shopItems ?? []}
+          request={request}
+          changed={changed}
+          buy={async (id) => {
+            await request(`/v1/shop/${id}/purchase`, {
+              method: "POST",
+              body: JSON.stringify({ method: "GEN" }),
+            });
+          }}
+        />
+      )}
       <div className="profile-stats profile-mini-stats">
+        <Metric
+          label="GEN balance"
+          value={fmt(data?.balances.gen ?? 0) + " GEN"}
+          icon="bolt"
+          info="Spend GEN on frames, banners and name effects."
+        />
         <Metric
           label="GEN spent"
           value={fmt(u?.genSpent ?? 0) + " GEN"}
@@ -1548,28 +1597,6 @@ function Profile({
           save={save}
         />
       )}
-      {u && (
-        <section className="profile-settings">
-          <h2>Profile collection</h2>
-          <p>
-            Buy profile styles in Shop, then equip one here. You can change or
-            remove it at any time.
-          </p>
-          <div className="shop-actions">
-            {(u.profileStyles ?? ["lion"]).map((style) => (
-              <button
-                key={style}
-                type="button"
-                aria-pressed={u.avatarStyle === style}
-                onClick={() => void equip(style)}
-              >
-                {u.avatarStyle === style ? "Equipped · " : ""}
-                {style}
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
       <WalletPanel detailed />
     </>
   );
@@ -1586,7 +1613,6 @@ function PackageModal({
   close: () => void;
 }) {
   const [intent, setIntent] = useState<PackageIntent | null>(null),
-    [txHash, setTxHash] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const packageCode = item[0];
@@ -1614,27 +1640,6 @@ function PackageModal({
     const url = `https://app.tonkeeper.com/transfer/${encodeURIComponent(intent.treasuryAddress)}?jetton=${encodeURIComponent(intent.jettonMasterAddress)}&amount=${amount}&text=${encodeURIComponent(`GENYX:${intent.id}`)}`;
     window.open(url, "_blank", "noopener,noreferrer");
   };
-  const submitHash = async () => {
-    if (!intent || txHash.trim().length < 16)
-      return setError("Paste the on-chain transaction hash from Tonkeeper.");
-    setBusy(true);
-    setError("");
-    try {
-      await request(`/v1/payments/${intent.id}/transaction`, {
-        method: "POST",
-        body: JSON.stringify({ txHash: txHash.trim() }),
-      });
-      done(
-        "Payment transaction submitted. Activation happens after the server confirms the USDT transfer.",
-      );
-    } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Could not submit transaction.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
   return (
     <div className="modal">
       <section>
@@ -1660,9 +1665,9 @@ function PackageModal({
         ) : (
           <>
             <p>
-              Send exactly <b>{fmt(intent.amountUsdc)} USDT</b> to the
-              registered treasury, then paste the resulting transaction hash for
-              confirmation.
+              Pay exactly <b>{fmt(intent.amountUsdc)} USDT</b>. Your wallet
+              receives a fixed amount and recipient; the package activates
+              automatically after on-chain confirmation.
             </p>
             <div className="secure">
               <Icon name="wallet" />
@@ -1676,20 +1681,21 @@ function PackageModal({
                 </small>
               </span>
             </div>
-            <button className="primary" onClick={payInTonkeeper}>
-              Open Tonkeeper payment <Icon name="arrow" />
-            </button>
-            <label className="tx-hash">
-              Transaction hash
-              <input
-                value={txHash}
-                onChange={(e) => setTxHash(e.target.value)}
-                placeholder="Paste TON transaction hash"
-                autoComplete="off"
-              />
-            </label>
-            <button className="primary" disabled={busy} onClick={submitHash}>
-              {busy ? "Submitting…" : "Submit for confirmation"}
+            <TonConnectPay
+              loadTransfer={(address) =>
+                request<TonConnectTransfer>(
+                  `/v1/payments/${intent.id}/ton-connect-transfer`,
+                  { method: "POST", body: JSON.stringify({ address }) },
+                )
+              }
+              onSent={() =>
+                done(
+                  "Payment sent. Your package activates automatically after on-chain confirmation.",
+                )
+              }
+            />
+            <button onClick={payInTonkeeper}>
+              Or open Tonkeeper manually <Icon name="arrow" />
             </button>
           </>
         )}

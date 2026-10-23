@@ -1,14 +1,17 @@
 'use client';
+import { PublicProfileCard, type PublicProfile } from './shared-profile';
 import './entry-welcome.css';
 import { TeamTree } from './team-tree';
 import { useEffect, useState } from 'react';
 type Request = <T>(path: string, init?: RequestInit) => Promise<T>;
-type Stats = { displayName: string; shareCode: string; publicProfile: boolean; nodes: number; direct: number; team: string; maxCap: string; capConsumed: string; level: number; season: number; day: number; leftVolume: string; rightVolume: string; cycles: string; vouchers: number };
+type Stats = { displayName: string; shareCode: string; publicProfile: boolean; nodes: number; direct: number; team: string; maxCap: string; capConsumed: string; level: number; rank: string; leftVolume: string; rightVolume: string; cycles: string; vouchers: number;
+  directReferral?: { purchases: number; cycles: string; commission: string; perCycle: string };
+  payoutPool?: { binary: string; reward: string; total: string } | null };
 export function CommunityPanel({ request }: { request: Request }) {
   const [stats, setStats] = useState<Stats | null>(null), [message, setMessage] = useState('');
   const [profileBusy, setProfileBusy] = useState(false);
   const [ranking, setRanking] = useState<{ me: { rank: string } | null; rows: { rank: string; name: string; amount: string; shareCode: string | null }[] } | null>(null);
-  const [publicUser, setPublicUser] = useState<{ displayName: string; level: number; season: number; commission: string } | null>(null);
+  const [publicUser, setPublicUser] = useState<PublicProfile | null>(null);
   useEffect(() => { const update = () => { void request<Stats>('/v1/me/stats').then(setStats).catch(e => setMessage(e.message)); void request<typeof ranking>('/v1/commission-leaderboard').then(setRanking).catch(e => setMessage(e.message)); }; update(); const timer = setInterval(update, 15000); return () => clearInterval(timer); }, []);
   useEffect(() => {
     const telegram = (window as Window & { Telegram?: { WebApp?: { initDataUnsafe?: { start_param?: string } } } }).Telegram;
@@ -17,9 +20,23 @@ export function CommunityPanel({ request }: { request: Request }) {
   }, []);
   const money = (n: string) => (Number(n)/1000000).toLocaleString('en-US');
   return <section className="profile-settings network-panel" dir="ltr" lang="en"><h2>Team statistics</h2><p role="status">{message}</p>{stats && <>
+    <section className="team-rank-banner"><span className={`rank-badge rank-${stats.rank.toLowerCase()}`}>{stats.rank}</span><div><small>YOUR RANK</small><b>Level {stats.level} / 11</b></div></section>
     <section className="ref-card"><span>YOUR REFERRAL CODE</span><strong className="referral-code">{stats.shareCode || 'Not available'}</strong><span>YOUR TRACKED REFERRAL LINK</span><code>{`https://t.me/smartgenyx_bot?startapp=ref_${stats.shareCode || ''}`}</code><button type="button" className="referral-copy" disabled={!stats.shareCode} onClick={async () => { try { await navigator.clipboard.writeText(`https://t.me/smartgenyx_bot?startapp=ref_${stats.shareCode}`); setMessage("Referral link copied. It opens GENYX directly in Telegram."); } catch { setMessage("Could not copy. Select and copy the link above."); } }}>Copy referral link</button></section>
-    <div className="profile-stats">{Object.entries({ 'Team': stats.team, 'Total max cap': `${money(stats.maxCap)} USDT`, 'Used max cap': `${money(stats.capConsumed)} USDT`, 'Level': stats.level, 'Season': stats.season, 'Season day': stats.day, 'Direct referrals': stats.direct,  'Left lifetime cycles': `${Number(stats.leftVolume) / 5000000} Cycles`, 'Cash cycles': stats.cycles, 'Right lifetime cycles': `${Number(stats.rightVolume) / 5000000} Cycles`, 'Available vouchers': stats.vouchers }).map(([label, value]) => <article key={label}><small>{label}</small><h3>{value}</h3></article>)}</div>
-    <p>Team volume is shown in Cycles (1 Cycle = 5 USDT volume). Financial amounts are in USDT. Public profiles show only name, level, season and commission.</p>
+    {stats.directReferral && <section className="direct-referral-card" aria-label="Direct referral cycle commission">
+      <div><small>DIRECT REFERRAL CYCLE COMMISSION</small><p>{money(stats.directReferral.perCycle)} USDT for every cycle of your direct referrals' first Token or Investment Package. Each cycle counts once.</p></div>
+      <div className="direct-referral-figures">
+        <article><small>Cycles</small><b>{Number(stats.directReferral.cycles).toLocaleString('en-US')}</b></article>
+        <article><small>Commission</small><b>{money(stats.directReferral.commission)} <span>USDT</span></b></article>
+        <article><small>First purchases</small><b>{stats.directReferral.purchases}</b></article>
+      </div>
+    </section>}
+    {stats.payoutPool && <section className="payout-pool-card" aria-label="Payout pool">
+      <small>PAYOUT POOL · VISIBLE FROM RISE</small>
+      <b>{money(stats.payoutPool.total)} <span>USDT</span></b>
+      <p>Binary cycles: {money(stats.payoutPool.binary)} USDT · Rewards: {money(stats.payoutPool.reward)} USDT</p>
+    </section>}
+    <div className="profile-stats">{Object.entries({ 'Team': stats.team, 'Total max cap': `${money(stats.maxCap)} USDT`, 'Used max cap': `${money(stats.capConsumed)} USDT`, 'Rank': stats.rank, 'Level': `${stats.level} / 11`, 'Direct referrals': stats.direct,  'Left lifetime cycles': `${Number(stats.leftVolume) / 10000000} Cycles`, 'Cash cycles': stats.cycles, 'Right lifetime cycles': `${Number(stats.rightVolume) / 10000000} Cycles`, 'Available vouchers': stats.vouchers }).map(([label, value]) => <article key={label}><small>{label}</small><h3>{value}</h3></article>)}</div>
+    <p>Team volume is shown in Cycles (1 Cycle = 10 USDT volume per line = 1 USDT). Financial amounts are in USDT. Your level is your organizational rank. Public profiles show only name, rank and commission.</p>
     <button type="button" className={`public-profile-toggle ${stats.publicProfile ? 'is-enabled' : ''}`} aria-pressed={stats.publicProfile} disabled={profileBusy} onClick={async () => { setProfileBusy(true); try { const next = !stats.publicProfile; await request('/v1/me/share-profile', { method: 'POST', body: JSON.stringify({ enabled: next }) }); setStats({ ...stats, publicProfile: next }); setMessage(next ? 'Public profile enabled.' : 'Public profile disabled.'); } catch(e) { setMessage(e instanceof Error ? e.message : 'Request failed'); } finally { setProfileBusy(false); } }}>
       <span><b>Public profile</b><small>{stats.publicProfile ? 'Your share link is visible to other GENYX members.' : 'Only you can view your profile details.'}</small></span><i aria-hidden="true" /> <strong>{profileBusy ? 'Saving…' : stats.publicProfile ? 'Enabled' : 'Enable'}</strong>
     </button>
@@ -41,7 +58,7 @@ export function CommunityPanel({ request }: { request: Request }) {
     }}>Share profile</button>
   </>}
   <TeamTree request={request} />
-  {publicUser && <article><h3>{publicUser.displayName}</h3><p>Level {publicUser.level} · Season {publicUser.season} · Commission {money(publicUser.commission)} USDT</p><button onClick={() => setPublicUser(null)}>Close</button></article>}
+  {publicUser && <article><PublicProfileCard profile={publicUser} /><button onClick={() => setPublicUser(null)}>Close</button></article>}
   </section>;
 }
 

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 type Request = <T>(path: string, init?: RequestInit) => Promise<T>;
+const RANK_NAMES = ['RISE', 'WARRIOR', 'ALPHA', 'NOBLE', 'VANGUARD', 'SOVEREIGN', 'ARCHON', 'ASCENDANT', 'TITAN', 'LEGACY', 'ETERNAL'];
 type Task = {
   id: string;
   title: string;
@@ -114,7 +115,7 @@ export function TaskManagement({
           {(!index || listedTasks[index - 1].dayNumber !== t.dayNumber) && (
             <h3 className="admin-task-day-heading">
               {t.dayNumber
-                ? `تسک‌های روز ${t.dayNumber}`
+                ? `تسک‌های روز ${t.dayNumber} فصل — برای کاربران مخفی است؛ با «ذخیره» دوباره فعال می‌شود`
                 : "تسک‌های بدون روز مشخص"}
             </h3>
           )}
@@ -141,9 +142,8 @@ export function TaskManagement({
                     channelChatId: f.get("channelChatId") || null,
                     gameKey: f.get("gameKey") || null,
                     targetValue: Number(f.get("targetValue")),
-                    dayNumber: f.get("dayNumber")
-                      ? Number(f.get("dayNumber"))
-                      : null,
+                    // Season days were retired: saving a task clears its day.
+                    dayNumber: null,
                     rewardGen: Number(f.get("rewardGen")),
                     rewardXp: Number(f.get("rewardXp")),
                     rewardUsdt: Math.round(
@@ -198,11 +198,9 @@ export function TaskManagement({
                     <option value="USED_CAP_REACHED">
                       مکس کپ مصرفی (USDT)
                     </option>
-                    <option value="SEASON_REACHED">شماره فصل</option>
                     <option value="CYCLES_REACHED">تعداد سایکل نقدی</option>
                     <option value="VOUCHERS_REACHED">تعداد ووچر موجود</option>
                     <option value="GEN_SPENT">GEN خرج‌شده</option>
-                    <option value="DAY_REACHED">روز فعلی فصل</option>
                   </select>
                 </label>
                 <label>
@@ -240,24 +238,14 @@ export function TaskManagement({
                     defaultValue={t.targetValue ?? 1}
                   />
                 </label>
-                <label>
-                  روز کاربر
-                  <select name="dayNumber" defaultValue={t.dayNumber ?? ""}>
-                    <option value="">بدون روز مشخص (حفظ تنظیم قبلی)</option>
-                    {Array.from({ length: 30 }, (_, i) => (
-                      <option value={i + 1} key={i}>
-                        {i + 1}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+
                 <label>
                   رتبه سازمانی
                   <select name="rankOrder" defaultValue={t.rankOrder ?? ""}>
                     <option value="">تسک عادی</option>
-                    {Array.from({ length: 12 }, (_, index) => (
-                      <option key={index} value={index + 1}>
-                        رتبه {index + 1}
+                    {RANK_NAMES.map((name, index) => (
+                      <option key={name} value={index + 1}>
+                        رتبه {index + 1} · {name}
                       </option>
                     ))}
                   </select>

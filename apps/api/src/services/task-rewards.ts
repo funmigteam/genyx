@@ -1,6 +1,7 @@
+import { rankLevel } from './ranks.js';
 import { LedgerKind, Prisma } from "@prisma/client";
 import { prisma } from "../prisma.js";
-import { PACKAGE_RULES, seasonDayKey } from "../domain/economics-v2.js";
+import { PACKAGE_RULES, seasonDayKey, dailyWindowStart } from "../domain/economics-v2.js";
 import { creditRewardInTransaction } from "./rewards.js";
 import { postLedger } from "./ledger.js";
 import {
@@ -140,34 +141,10 @@ export async function claimTask(
         if (completed !== task.rankOrder - 1)
           throw new Error("Complete the previous organizational rank first.");
       }
-      let claimKey = task.isDaily ? seasonDayKey(now) : "once";
-      let activitySince = task.startsAt;
-      if (task.isDaily) {
-        const day = await tx.seasonDay.findFirst({
-          where: { enrollment: { userId, endedAt: null }, closedAt: null },
-          orderBy: { opensAt: "desc" },
-        });
-        if (day) {
-          if (
-            day.deadline <= now ||
-            day.opensAt > now ||
-            day.graceAt ||
-            day.claimedAt
-          )
-            throw new Error("Season day is closed");
-          if (!(day.requiredTaskIds as string[]).includes(taskId))
-            throw new Error("Task is not in this season day");
-          if (task.dayNumber !== null && task.dayNumber !== day.number)
-            throw new Error("Task belongs to another day");
-          claimKey = `season:${day.id}`;
-          activitySince = day.opensAt;
-        } else if (
-          task.dayNumber !== null ||
-          (await tx.seasonEnrollment.count({ where: { userId } }))
-        ) {
-          throw new Error("No active season day");
-        }
-      }
+      // Season-day missions were retired with seasons.
+      if (task.dayNumber !== null) throw new Error("Task unavailable");
+      const claimKey = task.isDaily ? seasonDayKey(now) : "once";
+      const activitySince = task.isDaily ? dailyWindowStart(now) : task.startsAt;
       const previous = await tx.taskClaim.findUnique({
         where: { taskId_userId_claimKey: { taskId, userId, claimKey } },
       });
@@ -197,14 +174,6 @@ export async function claimTask(
           throw new Error(`Task target not reached: ${task.targetValue}`);
       }
       if (["XP_REACHED", "LEVEL_REACHED", "GAME_PLAYED"].includes(task.kind)) {
-        if (
-          task.kind === "GAME_PLAYED" &&
-          task.isDaily &&
-          !claimKey.startsWith("season:")
-        )
-          throw new Error(
-            "An active season day is required for daily game tasks",
-          );
         const rounds =
           task.kind === "GAME_PLAYED"
             ? ((
@@ -223,6 +192,7 @@ export async function claimTask(
           task.targetValue,
           user.xp,
           rounds,
+          await rankLevel(tx, userId),
         );
         if (!verified)
           throw new Error(

@@ -12,6 +12,7 @@ import {
 import { referralCodeFromStartCommand } from "./domain/referral-start.js";
 import { resetDatabasePreservingPackages } from "./services/database-reset.js";
 import { currentTerms, termsStatus } from "./services/terms.js";
+import { applyEconomicsUpdate, applyOfficialTables } from "./services/official-tables.js";
 import {
   profileStats,
   checkRequiredChannels,
@@ -25,30 +26,41 @@ import {
 import { requiresMembership } from "./domain/membership-policy.js";
 import { taskLocked } from "./domain/task-visibility.js";
 import { recordBinaryVolume, processBinaryQueue } from "./services/binary.js";
-import { readPackagePricing } from "./services/package-pricing.js";
+import { openingActive, readPackagePricing } from "./services/package-pricing.js";
 import { getOrCreatePackageIntent } from "./services/package-intents.js";
 import { discoverDeposits } from "./services/deposit-discovery.js";
+import { buildAdminWorkbook } from "./services/admin-report.js";
+import { payDirectReferralCommission } from "./services/direct-referral.js";
+import {
+  cancelInvestment,
+  withdrawInvestmentProfit,
+  confirmInvestmentPayment,
+  getOrCreateInvestmentIntent,
+  settleDueInvestments,
+} from "./services/investments.js";
+import {
+  INVESTMENT_PLANS,
+  MINER_TOKEN_PRICE,
+  cancellationQuote,
+  investmentAllowed,
+  nextSettlementAt,
+  accrual,
+  investmentPlan,
+} from "./domain/investments.js";
 import {
   createAuction,
   deleteUnusedAuction,
   placeAuctionBid,
-  purchaseAuctionPackage,
+  purchaseHallPack,
+  hallPassScope,
+  LOTTERY_PACK_GEN_PER_USDT,
   auctionPaymentIntent,
   claimAuctionAward,
   revealAuctionAward,
   confirmAuctionPayment,
   processAuctions,
 } from "./services/auctions.js";
-import {
-  enrollFreeSeason,
-  claimSeasonGift,
-  useSeasonGrace,
-  extendCurrentSeasonDay,
-  processSeasonDays,
-  confirmSeasonPayment,
-  createSeasonIntent,
-  resetSeasonProgress,
-} from "./services/seasons.js";
+import { resetProgress } from "./services/progress-reset.js";
 import { settlePackagePools } from "./services/package-pools.js";
 import { createWorker } from "./services/worker-runner.js";
 import {
@@ -58,7 +70,9 @@ import {
   seasonDayKey,
   BINARY_POOL_PERCENT,
 } from "./domain/economics-v2.js";
-import { levelForXp, dailyCapForXp } from "./domain/progression.js";
+import { MAX_LEVEL, RANKS, levelProgress } from "./domain/ranks.js";
+import { COSMETICS, PROFILE_BIO_MAX, cosmeticSlot } from "./domain/cosmetics.js";
+import { fixedCycles, rankLevel } from "./services/ranks.js";
 import { packageCatalogInput } from "./domain/package-catalog.js";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
@@ -68,6 +82,10 @@ import crypto from "node:crypto";
 import { Address, JettonMaster } from "@ton/ton";
 import { ContractAdapter } from "@ton-api/ton-adapter";
 import { findDepositNotification } from "./domain/jetton-confirmation.js";
+import {
+  buildInvoiceTransferPayload,
+  tonConnectGasAmount,
+} from "./domain/ton-connect-payment.js";
 import { supportRoutes } from "./services/support-routes.js";
 import { installApiErrors } from "./domain/api-errors.js";
 import { TonApiClient } from "@ton-api/client";
@@ -117,6 +135,9 @@ async function requireUser(
   } catch {
     return reply.code(401).send({ error: "Unauthorized" });
   }
+  // Single-purpose tokens (e.g. report download links) never act as a session.
+  if (request.user.purpose || !request.user.sub)
+    return reply.code(401).send({ error: "Unauthorized" });
   const current = await prisma.user.findUnique({
     where: { id: request.user.sub },
     select: { role: true },
@@ -194,11 +215,9 @@ const taskInput = z.object({
       "DIRECT_COUNT",
       "MAX_CAP_REACHED",
       "USED_CAP_REACHED",
-      "SEASON_REACHED",
       "CYCLES_REACHED",
       "VOUCHERS_REACHED",
       "GEN_SPENT",
-      "DAY_REACHED",
     ])
     .default("EXTERNAL_LINK"),
   channelChatId: z
@@ -207,7 +226,7 @@ const taskInput = z.object({
     .nullable()
     .optional(),
   targetValue: z.number().int().min(1).max(1_000_000_000).default(1),
-  rankOrder: z.number().int().min(1).max(12).nullable().optional(),
+  rankOrder: z.number().int().min(1).max(MAX_LEVEL).nullable().optional(),
   dayNumber: z.number().int().min(1).max(30).nullable().optional(),
   gameKey: z
     .string()
@@ -473,14 +492,20 @@ async function confirmPayment(id: string, actorId: string | null) {
       });
       return { id, status: payment.status, packageCode: payment.packageCode };
     }
+    // Seasons are retired: a late season payment is credited to the wallet.
     if (before.purpose === "SEASON") {
-      const payment = await confirmSeasonPayment(tx, id);
+      await tx.payment.update({ where: { id }, data: { purpose: "WALLET_TOPUP" } });
+      before.purpose = "WALLET_TOPUP";
+    }
+    if (before.purpose === "INVESTMENT") {
+      const payment = await confirmInvestmentPayment(tx, id);
       await tx.auditEvent.create({
         data: {
           actorId,
-          action: "SEASON_PAYMENT_CONFIRMED",
+          action: "INVESTMENT_PAYMENT_CONFIRMED",
           entityType: "Payment",
           entityId: id,
+          after: { plan: before.packageCode, amount: before.expectedAmount.toString() },
         },
       });
       return { id, status: payment.status, packageCode: payment.packageCode };
@@ -595,7 +620,7 @@ async function confirmPayment(id: string, actorId: string | null) {
     });
     await settlePackagePools(tx, before);
     await recordBinaryVolume(tx, payment.id);
-    await enrollFreeSeason(tx, payment.userId);
+    await payDirectReferralCommission(tx, payment.id);
     await tx.systemSetting.upsert({
       where: { key: "opening_started_at" },
       create: { key: "opening_started_at", value: new Date().toISOString() },
@@ -692,6 +717,11 @@ function startPaymentWorker() {
   worker.start();
   return worker;
 }
+const lotteryPackDescription = (series: string) =>
+  `Unlock bid registration in two ${series} halls. Includes 10 GEN for every 1 USDT spent. Paid once from your in-app USDT wallet.`;
+// One voucher per 6 completed Fixed Cycles; ranks show the cumulative total.
+const rankDescription = (fixedCycles: number, rewardUsdt: number) =>
+  `Check in after completing ${fixedCycles.toLocaleString("en-US")} Fixed Cycles, then claim your ${rewardUsdt.toLocaleString("en-US")} USDT organizational-rank reward. Total vouchers at this rank: ${Math.floor(fixedCycles / 6).toLocaleString("en-US")}.`;
 async function seedCoreContent() {
   const dailyCount = await prisma.task.count({ where: { isDaily: true } });
   if (dailyCount === 0)
@@ -738,7 +768,7 @@ async function seedCoreContent() {
           status: "PUBLISHED",
         },
         {
-          title: "Season action",
+          title: "Featured action",
           description: "Finish the featured daily mission.",
           kind: "MANUAL_REVIEW",
           rewardGen: 15,
@@ -804,7 +834,7 @@ async function seedCoreContent() {
       create: {
         sku: pack.sku,
         title: pack.title,
-        description: `Unlock two lottery halls in series ${pack.series}. The entry is paid once from your in-app USDT wallet.`,
+        description: lotteryPackDescription(pack.series),
         category: "LOTTERY",
         usdtPrice: pack.price,
         imageKey: pack.series,
@@ -812,44 +842,26 @@ async function seedCoreContent() {
         sortOrder: pack.order,
       },
     });
-  for (const profile of [
-    ["PROFILE_FRAME_GOLD", "Gold Halo", "frame-gold", 120],
-    ["PROFILE_FRAME_CYAN", "Cyan Pulse", "frame-cyan", 150],
-    ["PROFILE_FRAME_VIOLET", "Violet Nova", "frame-violet", 180],
-    ["PROFILE_FRAME_ROSE", "Rose Signal", "frame-rose", 210],
-    ["PROFILE_FRAME_OBSIDIAN", "Obsidian Core", "obsidian", 240],
-    ["PROFILE_FRAME_AURORA", "Aurora Crest", "aurora", 280],
-    ["PROFILE_FRAME_SOLAR", "Solar Crown", "solar", 320],
-    ["PROFILE_FRAME_ICE", "Ice Circuit", "ice", 360],
-  ] as const)
+  // Custom profile items: frames, banners and name effects. Administrator
+  // edits (price, title, active) are preserved on every later boot.
+  for (const [index, cosmetic] of COSMETICS.entries())
     await prisma.shopItem.upsert({
-      where: { sku: profile[0] },
+      where: { sku: cosmetic.sku },
       update: {},
       create: {
-        sku: profile[0],
-        title: profile[1],
-        description: `Equip the ${profile[1]} custom profile frame.`,
+        sku: cosmetic.sku,
+        title: cosmetic.title,
+        description: cosmetic.description,
         category: "PROFILE",
-        genPrice: profile[3],
-        imageKey: profile[2],
+        genPrice: cosmetic.gen,
+        imageKey: cosmetic.key,
         active: true,
-        sortOrder: 60 + profile[3],
+        sortOrder: 60 + index,
       },
     });
-  const organizationalRanks = [
-    [3, "SPARK", 2],
-    [10, "RISE", 7],
-    [30, "WARRIOR", 20],
-    [100, "ALPHA", 70],
-    [300, "NOBLE", 200],
-    [1_000, "VANGUARD", 700],
-    [3_000, "SOVEREIGN", 2_000],
-    [10_000, "ARCHON", 7_000],
-    [30_000, "ASCENDANT", 20_000],
-    [100_000, "TITAN", 70_000],
-    [300_000, "LEGACY", 200_000],
-    [1_000_000, "ETERNAL", 1_000_000],
-  ] as const;
+  const organizationalRanks = RANKS.map(
+    (rank) => [rank.cycles, rank.name, rank.rewardUsdt] as const,
+  );
   for (const [
     rankOrder,
     [fixedCycles, title, rewardUsdt],
@@ -860,7 +872,7 @@ async function seedCoreContent() {
       create: {
         rankOrder: rankOrder + 1,
         title: `${title} · ${fixedCycles.toLocaleString("en-US")} Fixed Cycles`,
-        description: `Check in after completing ${fixedCycles.toLocaleString("en-US")} fixed cycles, then claim your ${rewardUsdt.toLocaleString("en-US")} USDT organizational-rank reward.`,
+        description: rankDescription(fixedCycles, rewardUsdt),
         kind: "CYCLES_REACHED",
         targetValue: fixedCycles,
         rewardUsdt: BigInt(rewardUsdt) * 1_000_000n,
@@ -869,6 +881,8 @@ async function seedCoreContent() {
         status: "PUBLISHED",
       },
     });
+  await applyOfficialTables(rankDescription, lotteryPackDescription);
+  await applyEconomicsUpdate(rankDescription);
 }
 
 app.get("/health", async () => ({ ok: true }));
@@ -940,6 +954,8 @@ app.post("/v1/telegram/webhook", async (request: any, reply) => {
     // Telegram delivers the deep-link payload to the bot, not reliably to the
     // Web App. Preserve it in the Open button as a second, authenticated path.
     if (referralCode) miniAppUrl.searchParams.set("ref", referralCode);
+    // Always acknowledge the update: a non-2xx reply makes Telegram redeliver
+    // it repeatedly (e.g. when the user blocked the bot), re-running /start.
     const response = await fetch(
       `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,
       {
@@ -962,9 +978,15 @@ app.post("/v1/telegram/webhook", async (request: any, reply) => {
           },
         }),
       },
-    );
-    if (!response.ok)
-      return reply.code(502).send({ error: "Welcome delivery failed" });
+    ).catch((error: unknown) => {
+      request.log.warn({ error }, "Welcome delivery failed");
+      return null;
+    });
+    if (response && !response.ok)
+      request.log.warn(
+        { status: response.status, body: await response.text().catch(() => "") },
+        "Welcome delivery failed",
+      );
   }
   return { ok: true };
 });
@@ -1116,7 +1138,11 @@ app.get(
     return financialJson({
       displayName: stats.displayName,
       level: stats.level,
-      season: stats.season,
+      rank: stats.rank,
+      avatarStyle: user.avatarStyle,
+      profileBanner: user.profileBanner,
+      profileNameEffect: user.profileNameEffect,
+      profileBio: user.profileBio,
       commission: stats.commission,
     });
   },
@@ -1273,9 +1299,22 @@ app.patch(
   "/v1/me/profile-style",
   { preHandler: requireUser },
   async (request: any, reply) => {
+    // One item per slot. `style: null` clears a banner or name effect;
+    // the default "lion" frame is always owned.
     const body = z
-      .object({ style: z.string().min(1).max(30) })
+      .object({
+        style: z.string().min(1).max(30).nullable(),
+        slot: z.enum(["frame", "banner", "name"]).optional(),
+      })
       .parse(request.body);
+    const slot = body.style ? cosmeticSlot(body.style) : (body.slot ?? "frame");
+    const field = { frame: "avatarStyle", banner: "profileBanner", name: "profileNameEffect" } as const;
+    if (body.style === null)
+      return prisma.user.update({
+        where: { id: request.user.sub },
+        data: { [field[slot]]: slot === "frame" ? "lion" : null },
+        select: { avatarStyle: true, profileBanner: true, profileNameEffect: true },
+      });
     const owned =
       body.style === "lion" ||
       (await prisma.shopPurchase.findFirst({
@@ -1291,8 +1330,24 @@ app.patch(
       });
     return prisma.user.update({
       where: { id: request.user.sub },
-      data: { avatarStyle: body.style },
-      select: { avatarStyle: true },
+      data: { [field[slot]]: body.style },
+      select: { avatarStyle: true, profileBanner: true, profileNameEffect: true },
+    });
+  },
+);
+app.patch(
+  "/v1/me/profile-bio",
+  { preHandler: requireUser },
+  async (request: any) => {
+    const { bio } = z
+      .object({ bio: z.string().max(PROFILE_BIO_MAX) })
+      .parse(request.body);
+    // Plain text only: collapse whitespace and drop control characters.
+    const clean = bio.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+    return prisma.user.update({
+      where: { id: request.user.sub },
+      data: { profileBio: clean || null },
+      select: { profileBio: true },
     });
   },
 );
@@ -1405,16 +1460,10 @@ app.get("/v1/leaderboard", { preHandler: requireUser }, async () => {
 });
 app.get("/v1/tasks", { preHandler: requireUser }, async (request: any) => {
   const now = new Date();
-  const day = await prisma.seasonDay.findFirst({
-    where: {
-      enrollment: { userId: request.user.sub, endedAt: null },
-      closedAt: null,
-    },
-    orderBy: { opensAt: "desc" },
-  });
-  const key = day ? `season:${day.id}` : seasonDayKey(now);
+  const key = seasonDayKey(now);
+  // Season-day missions (dayNumber) were retired with seasons.
   const tasks = await prisma.task.findMany({
-    where: { status: "PUBLISHED" },
+    where: { status: "PUBLISHED", dayNumber: null },
     orderBy: { startsAt: "asc" },
     include: {
       claims: {
@@ -1431,7 +1480,7 @@ app.get("/v1/tasks", { preHandler: requireUser }, async (request: any) => {
     );
     return {
       ...task,
-      locked: taskLocked(task, day, now),
+      locked: taskLocked(task, null, now),
       claimed: Boolean(claim?.settledAt),
       pending: Boolean(claim && !claim.settledAt),
       verified: Boolean(claim?.verifiedAt),
@@ -1504,6 +1553,140 @@ app.post(
     };
   },
 );
+const investmentView = (investment: {
+  id: string; planCode: string; principal: bigint; monthlyProfit: bigint; monthlyTokens: bigint;
+  maxProfit: bigint; maxCap: bigint; fixedCycles: number; commissionAllocation: bigint; profitPaid: bigint;
+  tokensPaid: bigint; valueConsumed: bigint; status: string; startedAt: Date; settledThrough: string | null;
+  cancelledAt: Date | null; refundAmount: bigint | null; profitLocked: bigint; profitReleasedAt: Date | null;
+}) => {
+  const now = new Date();
+  const cancel = cancellationQuote(investment, now);
+  return {
+    ...investment,
+    cancellation: {
+      eligible: cancel.eligible,
+      deadline: cancel.deadline,
+      refund: cancel.refund,
+      deductions: cancel.deductions,
+    },
+    profitTarget: investment.maxProfit,
+    commissionsCounted: investment.valueConsumed - investment.profitPaid,
+    profitComplete: investment.valueConsumed >= investment.maxProfit,
+    canWithdrawProfit: investment.valueConsumed >= investment.maxProfit && investment.profitLocked > 0n,
+    // Accrued since the last settlement, so the dashboard can count up live.
+    accrual: accrual(investment, now),
+    serverTime: now,
+    nextSettlementAt:
+      investment.status === "ACTIVE" ? nextSettlementAt(investment.startedAt, now) : null,
+  };
+};
+app.get("/v1/investments", { preHandler: requireUser }, async (request: any) => {
+  const [investments, user] = await Promise.all([
+    prisma.investment.findMany({
+      where: { userId: request.user.sub },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.user.findUniqueOrThrow({
+      where: { id: request.user.sub },
+      select: { activePackageCode: true },
+    }),
+  ]);
+  return financialJson({
+    tokenPrice: MINER_TOKEN_PRICE,
+    packageCode: user.activePackageCode,
+    // Packs above 10× the token package stay visible but locked.
+    plans: INVESTMENT_PLANS.map((plan) => ({
+      ...investmentPlan(plan.code),
+      allowed: investmentAllowed(plan.code, user.activePackageCode),
+      requiredPackage:
+        PACKAGE_RULES.find((rule) =>
+          investmentAllowed(plan.code, rule.code),
+        )?.title ?? null,
+    })),
+    investments: investments.map(investmentView),
+  });
+});
+app.post(
+  "/v1/payments/investment-intents",
+  { preHandler: requireUser },
+  async (request: any, reply) => {
+    if (!env.PLATFORM_TREASURY_ADDRESS || !env.TON_USDC_MASTER_ADDRESS)
+      return reply
+        .code(503)
+        .send({ error: "Payment configuration is not ready" });
+    const body = z
+      .object({ planCode: z.string().min(3).max(32) })
+      .parse(request.body);
+    let payment;
+    try {
+      payment = await getOrCreateInvestmentIntent(request.user.sub, body.planCode);
+    } catch (error) {
+      return reply.code(422).send({
+        error: error instanceof Error ? error.message : "Investment unavailable",
+      });
+    }
+    return {
+      id: payment.id,
+      packageCode: payment.packageCode,
+      amountUsdc: formatUsdt(payment.expectedAmount),
+      treasuryAddress: env.PLATFORM_TREASURY_ADDRESS,
+      jettonMasterAddress: env.TON_USDC_MASTER_ADDRESS,
+      expiresAt: payment.expiresAt,
+    };
+  },
+);
+app.post(
+  "/v1/investments/:id/withdraw-profit",
+  { preHandler: requireUser },
+  async (request: any, reply) => {
+    try {
+      const result = await withdrawInvestmentProfit(request.user.sub, request.params.id);
+      return financialJson({ investment: investmentView(result.investment), amount: result.amount });
+    } catch (error) {
+      return reply.code(422).send({
+        error: error instanceof Error ? error.message : "Withdrawal failed",
+      });
+    }
+  },
+);
+app.post(
+  "/v1/investments/:id/cancel",
+  { preHandler: requireUser },
+  async (request: any, reply) => {
+    try {
+      return financialJson(
+        investmentView(await cancelInvestment(request.user.sub, request.params.id)),
+      );
+    } catch (error) {
+      return reply.code(422).send({
+        error: error instanceof Error ? error.message : "Cancellation failed",
+      });
+    }
+  },
+);
+app.get(
+  "/v1/admin/investments",
+  { preHandler: requireFinanceAdmin },
+  async () => {
+    const [rows, pool] = await Promise.all([
+      prisma.investment.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 300,
+        include: {
+          user: { select: { telegramId: true, username: true, firstName: true } },
+        },
+      }),
+      prisma.ledgerAccount.findUnique({ where: { code: "SYSTEM:USDC:INVESTMENT" } }),
+    ]);
+    return financialJson({
+      poolBalance: pool ? await accountBalance(pool.id) : 0n,
+      investments: rows.map((row) => ({
+        ...investmentView(row),
+        user: { ...row.user, telegramId: row.user.telegramId.toString() },
+      })),
+    });
+  },
+);
 app.post(
   "/v1/payments/wallet-topup-intents",
   { preHandler: requireUser },
@@ -1544,82 +1727,6 @@ app.post(
     };
   },
 );
-const seasonPricesInput = z.object({
-  "2": z.string().regex(/^\d+(\.\d{1,6})?$/),
-  "3": z.string().regex(/^\d+(\.\d{1,6})?$/),
-  "4": z.string().regex(/^\d+(\.\d{1,6})?$/),
-});
-async function readSeasonPrices() {
-  const setting = await prisma.systemSetting.findUnique({
-    where: { key: "season_prices" },
-  });
-  return seasonPricesInput.parse(
-    setting?.value ?? { "2": "9", "3": "27", "4": "81" },
-  );
-}
-app.get("/v1/seasons/catalog", async () => ({
-  firstSeasonFree: true,
-  prices: await readSeasonPrices(),
-}));
-app.put(
-  "/v1/admin/settings/season-prices",
-  { preHandler: requireUser },
-  async (request: any, reply) => {
-    const actor = await prisma.user.findUniqueOrThrow({
-      where: { id: request.user.sub },
-    });
-    if (actor.role !== "SUPER_ADMIN")
-      return reply.code(403).send({ error: "Super admin required" });
-    const prices = seasonPricesInput.parse(request.body);
-    for (const price of Object.values(prices))
-      if (parseUsdt(price) <= 0n || parseUsdt(price) > 1000000000000n)
-        return reply.code(422).send({ error: "Invalid price" });
-    return prisma.$transaction(async (tx) => {
-      const setting = await tx.systemSetting.upsert({
-        where: { key: "season_prices" },
-        create: { key: "season_prices", value: prices },
-        update: { value: prices },
-      });
-      await tx.auditEvent.create({
-        data: {
-          actorId: actor.id,
-          action: "SEASON_PRICES_UPDATED",
-          entityType: "SystemSetting",
-          entityId: "season_prices",
-          after: prices,
-        },
-      });
-      return setting;
-    });
-  },
-);
-app.post(
-  "/v1/payments/season-intents",
-  { preHandler: requireUser },
-  async (request: any, reply) => {
-    if (!env.PLATFORM_TREASURY_ADDRESS || !env.TON_USDC_MASTER_ADDRESS)
-      return reply
-        .code(503)
-        .send({ error: "Payment configuration is not ready" });
-    const body = z
-      .object({ season: z.number().int().min(2).max(4) })
-      .parse(request.body);
-    const prices = await readSeasonPrices();
-    const payment = await createSeasonIntent(
-      request.user.sub,
-      body.season,
-      parseUsdt(prices[String(body.season) as keyof typeof prices]),
-    );
-    return {
-      id: payment.id,
-      season: body.season,
-      amountUsdc: formatUsdt(payment.expectedAmount),
-      treasuryAddress: env.PLATFORM_TREASURY_ADDRESS,
-      jettonMasterAddress: env.TON_USDC_MASTER_ADDRESS,
-      expiresAt: payment.expiresAt,
-    };
-  },
-);
 app.post(
   "/v1/payments/:id/transaction",
   { preHandler: requireUser },
@@ -1648,6 +1755,66 @@ app.post(
         .code(409)
         .send({ error: "This transaction hash is already registered" });
     }
+  },
+);
+
+// Returns the exact Jetton transfer for TON Connect: the wallet signs a
+// server-fixed recipient, amount and invoice comment, so nothing can be edited.
+app.post(
+  "/v1/payments/:id/ton-connect-transfer",
+  { preHandler: requireUser },
+  async (request: any, reply) => {
+    const body = z
+      .object({ address: z.string().min(10).max(128) })
+      .parse(request.body);
+    if (!env.PLATFORM_TREASURY_ADDRESS || !env.TON_USDC_MASTER_ADDRESS)
+      return reply.code(503).send({ error: "Payments are not configured" });
+    const payment = await prisma.payment.findFirst({
+      where: { id: request.params.id, userId: request.user.sub },
+    });
+    if (!payment)
+      return reply.code(404).send({ error: "Payment intent not found" });
+    if (payment.status !== "PENDING" || payment.expiresAt < new Date())
+      return reply
+        .code(422)
+        .send({ error: "Payment intent is no longer pending" });
+    let payer: Address;
+    try {
+      payer = Address.parse(body.address);
+    } catch {
+      return reply.code(422).send({ error: "Invalid wallet address" });
+    }
+    const client = new TonApiClient({
+      baseUrl:
+        env.TON_NETWORK === "mainnet"
+          ? "https://tonapi.io"
+          : "https://testnet.tonapi.io",
+      apiKey: env.TONAPI_KEY,
+    });
+    const payerJettonWallet = await new ContractAdapter(client)
+      .open(JettonMaster.create(Address.parse(env.TON_USDC_MASTER_ADDRESS)))
+      .getWalletAddress(payer);
+    const payload = buildInvoiceTransferPayload({
+      amount: payment.expectedAmount,
+      treasury: Address.parse(env.PLATFORM_TREASURY_ADDRESS),
+      payer,
+      comment: `GENYX:${payment.id}`,
+      queryId: BigInt(Date.now()),
+    });
+    return {
+      validUntil: Math.min(
+        Math.floor(payment.expiresAt.getTime() / 1000),
+        Math.floor(Date.now() / 1000) + 600,
+      ),
+      network: env.TON_NETWORK === "mainnet" ? "-239" : "-3",
+      messages: [
+        {
+          address: payerJettonWallet.toString({ bounceable: true }),
+          amount: tonConnectGasAmount.toString(),
+          payload: payload.toBoc().toString("base64"),
+        },
+      ],
+    };
   },
 );
 
@@ -1699,19 +1866,8 @@ app.get(
           include: { item: true },
         }),
       ]);
-    const currentSeason = await prisma.seasonEnrollment.findFirst({
-      where: { userId: user.id, currentDay: { gt: 0 } },
-      orderBy: { season: "desc" },
-      include: { days: { where: { closedAt: null }, take: 1 } },
-    });
     const now = new Date(),
-      currentSeasonDay = currentSeason?.days[0],
-      dailyKey = currentSeasonDay
-        ? `season:${currentSeasonDay.id}`
-        : seasonDayKey(now);
-    const progress = currentSeason
-      ? Math.min(100, (currentSeason.completedDays / 30) * 100)
-      : 0;
+      dailyKey = seasonDayKey(now);
     const packageAccess = hasPackageAccess(user);
     const completedRank = Math.max(
       0,
@@ -1724,7 +1880,9 @@ app.get(
         .map((task) => task.rankOrder ?? 0),
     );
     const visibleTasks = tasks.filter(
-      (task) => !task.rankOrder || task.rankOrder <= completedRank + 2,
+      (task) =>
+        task.dayNumber === null &&
+        (!task.rankOrder || task.rankOrder <= completedRank + 2),
     );
     const profileStyles = [
       "lion",
@@ -1745,6 +1903,9 @@ app.get(
         language: "en",
         languageChosen: user.languageChosen,
         avatarStyle: user.avatarStyle,
+        profileBanner: user.profileBanner,
+        profileNameEffect: user.profileNameEffect,
+        profileBio: user.profileBio,
         profileStyles,
         role: user.role,
         referralCode: user.referralCode ?? `GEN-${user.telegramId.toString()}`,
@@ -1753,24 +1914,18 @@ app.get(
         genSpent: user.genSpent.toString(),
         totalDeposited: user.totalDeposited.toString(),
         totalWithdrawn: user.totalWithdrawn.toString(),
-        level: levelForXp(user.xp),
+        level: levelProgress(completedRank, await fixedCycles(prisma, user.id)),
         organizationalRank: completedRank,
       },
       balances: {
         gen: (await accountBalance(genAccount.id)).toString(),
         usdc: (await accountBalance(usdcAccount.id)).toString(),
       },
-      season: {
-        progress,
-        currentDay: currentSeasonDay?.number ?? 0,
-        eligibleSeasonTwo: Boolean(currentSeason),
-        rewardMilestones: [],
-      },
       tasks: visibleTasks.map((task) => ({
         ...task,
         locked:
           !packageAccess ||
-          taskLocked(task, currentSeasonDay, now) ||
+          taskLocked(task, null, now) ||
           Boolean(task.rankOrder && task.rankOrder > completedRank + 1),
         claimed: task.claims.some(
           (claim) =>
@@ -1915,18 +2070,16 @@ app.post(
             )
               throw new Error("An XP boost is already active");
           }
-          if (item.category === "TIME") {
-            if (item.durationMinutes !== 1440)
-              throw new Error("Configure a 24-hour season extension item");
-            await extendCurrentSeasonDay(tx, user.id);
-          }
+          if (item.category === "TIME")
+            throw new Error("Season time extensions were retired");
           const lotterySeries =
             item.category === "LOTTERY" ? item.imageKey.toUpperCase() : null;
           if (lotterySeries && !["A", "B", "C"].includes(lotterySeries))
             throw new Error("Lottery pack image key must be A, B, or C");
-          if (lotterySeries && body.method !== "USDT")
+          // Each lottery pack now belongs to one specific hall.
+          if (lotterySeries)
             throw new Error(
-              "Lottery packs are purchased with USDT from the in-app wallet.",
+              "Buy lottery packs inside the hall you want to enter, in the Lottery tab.",
             );
           if (body.method === "VOUCHER") {
             const current = await tx.user.findUniqueOrThrow({
@@ -2000,7 +2153,12 @@ app.post(
               where: { id: user.id },
               data: { vouchers: { increment: item.rewardVouchers } },
             });
-          if (item.rewardGen) {
+          // Lottery pack rule: 10 GEN per 1 USDT unless an admin set a reward.
+          const rewardGen =
+            lotterySeries && !item.rewardGen
+              ? Number((usdtPrice * LOTTERY_PACK_GEN_PER_USDT) / 1_000_000n)
+              : item.rewardGen;
+          if (rewardGen) {
             const source = await tx.ledgerAccount.upsert({
               where: { code: "SYSTEM:GEN:SHOP" },
               create: {
@@ -2020,8 +2178,8 @@ app.post(
                 referenceType: "ShopItem",
                 referenceId: item.id,
                 postings: [
-                  { accountId: source.id, debit: BigInt(item.rewardGen) },
-                  { accountId: recipient.id, credit: BigInt(item.rewardGen) },
+                  { accountId: source.id, debit: BigInt(rewardGen) },
+                  { accountId: recipient.id, credit: BigInt(rewardGen) },
                 ],
               },
               tx,
@@ -2232,9 +2390,8 @@ app.get(
       })),
       boostsEnabled: true,
       internalTransfersEnabled: false,
-      gracePeriod: "SEASON",
-      seasonRepurchaseAllowed: false,
-      extraTimeAllowed: true,
+      gracePeriod: "NONE",
+      extraTimeAllowed: false,
     });
   },
 );
@@ -2299,8 +2456,6 @@ app.get("/v1/admin/activity-stats", { preHandler: requireAdmin }, async () => {
     activeUsers,
     claims,
     pendingClaims,
-    seasons,
-    gifts,
     auctions,
     bids,
     vouchers,
@@ -2311,8 +2466,6 @@ app.get("/v1/admin/activity-stats", { preHandler: requireAdmin }, async () => {
     prisma.user.count({ where: { activePackageCode: { not: null } } }),
     prisma.taskClaim.count({ where: { settledAt: { not: null } } }),
     prisma.taskClaim.count({ where: { settledAt: null } }),
-    prisma.seasonEnrollment.count(),
-    prisma.seasonDay.count({ where: { claimedAt: { not: null } } }),
     prisma.auction.count(),
     prisma.auctionBid.count(),
     prisma.user.aggregate({ _sum: { vouchers: true } }),
@@ -2327,8 +2480,6 @@ app.get("/v1/admin/activity-stats", { preHandler: requireAdmin }, async () => {
     activeUsers,
     claims,
     pendingClaims,
-    seasons,
-    gifts,
     auctions,
     bids,
     vouchers: vouchers._sum.vouchers ?? 0,
@@ -2336,73 +2487,6 @@ app.get("/v1/admin/activity-stats", { preHandler: requireAdmin }, async () => {
     gameRounds: gameRounds._sum.rounds ?? 0,
   });
 });
-app.get("/v1/admin/daily-gifts", { preHandler: requireAdmin }, async () =>
-  financialJson(
-    await prisma.seasonDay.findMany({
-      take: 100,
-      orderBy: { opensAt: "desc" },
-      include: { enrollment: { select: { userId: true, season: true } } },
-    }),
-  ),
-);
-app.get(
-  "/v1/admin/daily-gift-policy",
-  { preHandler: requireAdmin },
-  async () =>
-    (
-      await prisma.systemSetting.findUnique({
-        where: { key: "daily_gift_policy" },
-      })
-    )?.value ?? { enabled: false, usdt: "0", gen: 0, xp: 0 },
-);
-app.put(
-  "/v1/admin/daily-gift-policy",
-  { preHandler: requireUser },
-  async (request: any, reply) => {
-    if (request.user.role !== "SUPER_ADMIN")
-      return reply.code(403).send({ error: "Super admin required" });
-    const value = dailyGiftPolicyInput.parse(request.body);
-    return prisma.$transaction(async (tx) => {
-      await tx.systemSetting.upsert({
-        where: { key: "daily_gift_policy" },
-        create: { key: "daily_gift_policy", value },
-        update: { value },
-      });
-      let updatedActiveDays = 0;
-      for (const [dayNumber, gift] of Object.entries(value.days)) {
-        if (!gift.enabled) continue;
-        const result = await tx.seasonDay.updateMany({
-          where: {
-            number: Number(dayNumber),
-            closedAt: null,
-            claimedAt: null,
-            graceAt: null,
-            enrollment: { endedAt: null },
-          },
-          data: {
-            gift:
-              parseUsdt(gift.usdt) > 3_000_000n
-                ? 3_000_000n
-                : parseUsdt(gift.usdt),
-            giftGen: gift.gen,
-            giftXp: gift.xp,
-          },
-        });
-        updatedActiveDays += result.count;
-      }
-      await tx.auditEvent.create({
-        data: {
-          actorId: request.user.sub,
-          action: "DAILY_GIFT_POLICY_UPDATED",
-          entityType: "SystemSetting",
-          entityId: "daily_gift_policy",
-          after: value,
-        },
-      });
-      return { ...value, updatedActiveDays };
-    });
-  },
-);
 app.get(
   "/v1/auctions/history",
   { preHandler: requireUser },
@@ -2413,19 +2497,26 @@ app.get(
       .min(0)
       .max(100000)
       .parse(request.query.page ?? 0);
-    // Cancelled rooms are administration-only audit records, not completed
-    // lottery results.  Users should see only genuinely closed halls here.
-    const where = { status: "CLOSED" };
+    // A hall leaves the live list the moment its countdown ends: halls
+    // awaiting the winner's claim and closed halls both belong in the results
+    // archive. Cancelled rooms are administration-only audit records.
+    const where = {
+      OR: [
+        { status: { in: ["AWAITING", "CLOSED"] } },
+        { status: "OPEN", remainingSeconds: { lte: 0 } },
+      ],
+    };
     const [total, rows] = await Promise.all([
       prisma.auction.count({ where }),
       prisma.auction.findMany({
         where,
         skip: page * 20,
         take: 20,
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        orderBy: [{ endsAt: "desc" }, { id: "desc" }],
         select: {
           id: true,
           title: true,
+          series: true,
           status: true,
           createdAt: true,
           remainingSeconds: true,
@@ -2447,7 +2538,7 @@ app.get(
   { preHandler: requireUser },
   async (request: any, reply) => {
     const auction = await prisma.auction.findFirst({
-      where: { id: request.params.id, status: "CLOSED" },
+      where: { id: request.params.id, status: { in: ["AWAITING", "CLOSED"] } },
       select: { id: true },
     });
     if (!auction)
@@ -2594,6 +2685,45 @@ app.get(
     };
   },
 );
+// Telegram's in-app browser cannot save a fetched blob, so the panel asks for
+// a five-minute signed link and opens it (Telegram.WebApp.downloadFile or a
+// plain navigation). The link token is not a session token.
+app.post(
+  "/v1/admin/reports/full.xlsx/link",
+  { preHandler: requireFinanceAdmin },
+  async (request: any) => {
+    const token = app.jwt.sign(
+      { purpose: "report-download", admin: request.user.sub },
+      { expiresIn: "5m" },
+    );
+    return {
+      path: `/v1/admin/reports/download?token=${encodeURIComponent(token)}`,
+      fileName: `genyx-report-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    };
+  },
+);
+app.get("/v1/admin/reports/download", async (request: any, reply) => {
+  let claims: { purpose?: string; admin?: string };
+  try {
+    claims = app.jwt.verify(String(request.query?.token ?? ""));
+  } catch {
+    return reply.code(401).type("text/plain").send("This download link has expired. Create a new one from the admin panel.");
+  }
+  const admin = claims.purpose === "report-download" && claims.admin
+    ? await prisma.user.findUnique({ where: { id: claims.admin }, select: { id: true, role: true } })
+    : null;
+  if (!admin || !["SUPER_ADMIN", "FINANCE_ADMIN"].includes(admin.role))
+    return reply.code(403).type("text/plain").send("Finance admin access required");
+  const now = new Date();
+  const workbook = await buildAdminWorkbook(now);
+  await prisma.auditEvent.create({ data: { actorId: admin.id, action: "ADMIN_REPORT_EXPORTED", entityType: "Report", entityId: "full.xlsx" } });
+  return reply
+    .header("access-control-allow-origin", "*")
+    .header("cache-control", "no-store")
+    .header("content-type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    .header("content-disposition", `attachment; filename="genyx-report-${now.toISOString().slice(0, 10)}.xlsx"`)
+    .send(workbook);
+});
 app.get(
   "/v1/admin/reports/financial.csv",
   { preHandler: requireFinanceAdmin },
@@ -3158,13 +3288,22 @@ app.post(
 app.patch(
   "/v1/admin/tasks/:id",
   { preHandler: requireAdmin },
-  async (request: any) => {
+  async (request: any, reply) => {
     const input = taskInput.partial().parse(request.body);
     if (input.dayNumber) input.isDaily = true;
     const before = await prisma.task.findUniqueOrThrow({
       where: { id: request.params.id },
     });
-    validateTaskConditions({ ...before, ...input });
+    try {
+      validateTaskConditions({ ...before, ...input });
+    } catch (error) {
+      return reply.code(422).send({ error: error instanceof Error ? error.message : "Invalid task" });
+    }
+    if (input.rankOrder) {
+      const holder = await prisma.task.findFirst({ where: { rankOrder: input.rankOrder, id: { not: before.id } }, select: { title: true } });
+      if (holder)
+        return reply.code(409).send({ error: `Rank ${input.rankOrder} already belongs to "${holder.title}". Edit that rank instead.` });
+    }
     const task = await prisma.task.update({
       where: { id: before.id },
       data: input,
@@ -3419,6 +3558,7 @@ app.get(
           amount: row.amount.toString(),
           fee: row.fee.toString(),
           netAmount: row.netAmount.toString(),
+          automatic: payoutAutomationReady,
           user: { ...row.user, telegramId: row.user.telegramId.toString() },
         })),
       ),
@@ -3747,7 +3887,10 @@ app.post(
       // Signing, broadcast, and chain confirmation remain owned by the worker.
       if (payoutAutomationReady && withdrawal.status === "APPROVED")
         void payoutWorker?.tick();
-      return { ...withdrawal, automatic: payoutAutomationReady };
+      return {
+        ...withdrawal,
+        automatic: payoutAutomationReady && withdrawal.status === "APPROVED",
+      };
     } catch (error) {
       return reply.code(422).send({
         error: error instanceof Error ? error.message : "Withdrawal failed",
@@ -3773,32 +3916,8 @@ app.get(
       }),
       accountBalance(account.id),
     ]);
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
-    const [user, usage] = await Promise.all([
-      prisma.user.findUniqueOrThrow({
-        where: { id: userId },
-        select: { xp: true },
-      }),
-      prisma.withdrawal.aggregate({
-        where: {
-          userId,
-          createdAt: { gte: today },
-          status: { notIn: ["REJECTED", "CANCELLED"] },
-        },
-        _sum: { amount: true },
-        _count: { _all: true },
-      }),
-    ]);
-    const remaining = dailyCapForXp(user.xp) - (usage._sum.amount ?? 0n);
-    const maxAmount =
-      usage._count._all >= economics.withdrawal.maximumPerDay ||
-      remaining <= 0n ||
-      balance <= 0n
-        ? 0n
-        : balance < remaining
-          ? balance
-          : remaining;
+    // Withdrawals have no daily cap: the whole available balance can be withdrawn.
+    const maxAmount = balance > 0n ? balance : 0n;
     return financialJson({
       wallet: wallet
         ? { ...wallet, address: Address.parse(wallet.address).toRawString() }
@@ -3806,17 +3925,16 @@ app.get(
       rows,
       balance,
       maxAmount,
-      usedToday: usage._count._all,
       minimum: economics.withdrawal.minimumUsdc,
       feeBps: economics.withdrawal.feeBps,
-      maximumPerDay: economics.withdrawal.maximumPerDay,
       automatic: payoutAutomationReady,
+      autoPayoutMax: env.AUTO_PAYOUT_MAX_USDT,
     });
   },
 );
 
 await seedCoreContent();
-const payoutWorker = startPayoutWorker(app.log);
+const payoutWorker = await startPayoutWorker(app.log);
 const paymentWorker = startPaymentWorker();
 const auctionWorker = createWorker("auctions", 1000, processAuctions, app.log);
 auctionWorker?.start();
@@ -3845,7 +3963,9 @@ app.get("/v1/auctions", { preHandler: requireUser }, async (request: any) => {
   });
   const series = [
     ...new Set(rooms.map((room) => room.series ?? `ROOM:${room.id}`)),
+    ...rooms.map((room) => hallPassScope(room.id)),
   ];
+  const packPrices = await readAuctionPackagePrices();
   const passes = series.length
     ? await prisma.auctionEntryPass.findMany({
         where: { userId: request.user.sub, series: { in: series } },
@@ -3856,12 +3976,20 @@ app.get("/v1/auctions", { preHandler: requireUser }, async (request: any) => {
     passes.map((pass) => [pass.series, pass.roomsRemaining]),
   );
   return financialJson(
-    rooms.map((room) => ({
-      ...room,
-      entryPaid:
-        (passesBySeries.get(room.series ?? `ROOM:${room.id}`) ?? 0) > 0,
-      entryCredits: passesBySeries.get(room.series ?? `ROOM:${room.id}`) ?? 0,
-    })),
+    rooms.map((room) => {
+      const packHall = Boolean(room.series && ["A", "B", "C"].includes(room.series));
+      const hallPack = passesBySeries.has(hallPassScope(room.id));
+      return {
+        ...room,
+        // Pack halls: the hall's own pack, or already entered with an old credit.
+        entryPaid: packHall
+          ? hallPack || room._count.bids > 0
+          : (passesBySeries.get(room.series ?? `ROOM:${room.id}`) ?? 0) > 0,
+        hallPack,
+        packPriceUsdt: packHall ? parseUsdt(packPrices[room.series as "A" | "B" | "C"]) : null,
+        entryCredits: passesBySeries.get(room.series ?? `ROOM:${room.id}`) ?? 0,
+      };
+    }),
   );
 });
 app.get(
@@ -3887,40 +4015,39 @@ app.get(
   },
 );
 app.post(
-  "/v1/auction-packages/:series/purchase",
+  "/v1/auctions/:id/pack",
   { preHandler: requireUser },
   async (request: any, reply) => {
-    const series = z
-      .enum(["A", "B", "C"])
-      .safeParse(String(request.params.series).toUpperCase());
-    const body = z
-      .object({ requestKey: z.string().uuid() })
-      .parse(request.body);
-    if (!series.success)
-      return reply.code(422).send({ error: "Unknown lottery package" });
+    const body = z.object({ requestKey: z.string().uuid() }).parse(request.body);
     try {
+      const auction = await prisma.auction.findUnique({ where: { id: request.params.id } });
+      if (!auction?.series || !["A", "B", "C"].includes(auction.series))
+        throw new Error("This hall does not use lottery packs");
       const prices = await readAuctionPackagePrices();
-      const price = parseUsdt(prices[series.data]);
-      if (price <= 0n)
-        throw new Error("Lottery package price must be positive");
       return financialJson(
-        await purchaseAuctionPackage(
+        await purchaseHallPack(
           request.user.sub,
-          series.data,
-          price,
+          auction.id,
+          parseUsdt(prices[auction.series as "A" | "B" | "C"]),
           body.requestKey,
         ),
       );
     } catch (error) {
       return reply.code(422).send({
-        error:
-          error instanceof Error
-            ? error.message
-            : "Lottery package purchase failed",
+        error: error instanceof Error ? error.message : "Lottery pack purchase failed",
         requestId: request.id,
       });
     }
   },
+);
+// Series-wide packs were replaced by one pack per hall (POST /v1/auctions/:id/pack).
+app.post(
+  "/v1/auction-packages/:series/purchase",
+  { preHandler: requireUser },
+  async (_request, reply) =>
+    reply.code(410).send({
+      error: "Lottery packs are now bought for one specific hall. Open the hall in the Lottery tab and buy its pack there.",
+    }),
 );
 app.get(
   "/v1/admin/auction-package-prices",
@@ -4160,10 +4287,11 @@ app.post(
     }
   },
 );
-const seasonWorker = env.AUTOMATION_ENABLED
-  ? createWorker("season-days", 30000, processSeasonDays, app.log)
+// Monthly investment profits are paid at the start of each Gregorian month.
+const investmentWorker = env.AUTOMATION_ENABLED
+  ? createWorker("investments", 10 * 60_000, () => settleDueInvestments(), app.log)
   : undefined;
-seasonWorker?.start();
+investmentWorker?.start();
 app.post(
   "/v1/admin/progress/reset",
   { preHandler: requireAdmin },
@@ -4174,30 +4302,8 @@ app.post(
         requestKey: z.string().uuid(),
       })
       .parse(request.body);
-    return resetSeasonProgress(request.user.sub, body.requestKey);
+    return resetProgress(request.user.sub, body.requestKey);
   },
-);
-app.get("/v1/me/seasons", { preHandler: requireUser }, async (request: any) =>
-  financialJson(
-    await prisma.seasonEnrollment.findMany({
-      where: { userId: request.user.sub },
-      include: {
-        days: { where: { number: { gt: 0 } }, orderBy: { number: "asc" } },
-      },
-    }),
-  ),
-);
-app.post(
-  "/v1/seasons/days/:id/gift",
-  { preHandler: requireUser },
-  async (request: any) =>
-    financialJson(await claimSeasonGift(request.user.sub, request.params.id)),
-);
-app.post(
-  "/v1/seasons/days/:id/grace",
-  { preHandler: requireUser },
-  async (request: any) =>
-    financialJson(await useSeasonGrace(request.user.sub, request.params.id)),
 );
 const binaryWorker = env.AUTOMATION_ENABLED
   ? createWorker("binary-settlement", 30000, processBinaryQueue, app.log)
@@ -4228,12 +4334,12 @@ app.get(
 );
 app.get("/v1/admin/workers", { preHandler: requireFinanceAdmin }, async () => ({
   automationEnabled: env.AUTOMATION_ENABLED,
-  payoutMode: "MANUAL",
+  payoutMode: payoutAutomationReady ? "AUTOMATIC" : "MANUAL",
   workers: [
     payoutWorker?.state ?? { name: "payout", disabled: true },
     paymentWorker?.state ?? { name: "submitted-payments", disabled: true },
     binaryWorker?.state ?? { name: "binary-settlement", disabled: true },
-    seasonWorker?.state ?? { name: "season-days", disabled: true },
+    investmentWorker?.state ?? { name: "investments", disabled: true },
     auctionWorker?.state ?? { name: "auctions", disabled: true },
   ],
   economicsV2Live: false,
@@ -4243,7 +4349,7 @@ app.addHook("onClose", async () => {
     payoutWorker?.stop(),
     paymentWorker?.stop(),
     binaryWorker?.stop(),
-    seasonWorker?.stop(),
+    investmentWorker?.stop(),
     auctionWorker?.stop(),
   ]);
   await prisma.$disconnect();
